@@ -461,6 +461,36 @@ describe('lua: nvim_buf_attach on_bytes', function()
       }
     end)
 
+    it("deleting lines", function()
+      local check_events = setup_eventcheck(verify, origlines)
+
+      feed("dd")
+
+      check_events {
+        { "test1", "bytes", 1, 3, 0, 0, 0, 1, 0, 16, 0, 0, 0 };
+      }
+
+      feed("d2j")
+
+      check_events {
+        { "test1", "bytes", 1, 4, 0, 0, 0, 3, 0, 48, 0, 0, 0 };
+      }
+
+      feed("ld<c-v>2j")
+
+      check_events {
+        { "test1", "bytes", 1, 5, 0, 1, 1, 0, 1, 1, 0, 0, 0 };
+        { "test1", "bytes", 1, 5, 1, 1, 16, 0, 1, 1, 0, 0, 0 };
+        { "test1", "bytes", 1, 5, 2, 1, 31, 0, 1, 1, 0, 0, 0 };
+      }
+
+      feed("vjwd")
+
+      check_events {
+        { "test1", "bytes", 1, 10, 0, 1, 1, 1, 9, 23, 0, 0, 0 };
+      }
+    end)
+
     it("changing lines", function()
       local check_events = setup_eventcheck(verify, origlines)
 
@@ -537,19 +567,64 @@ describe('lua: nvim_buf_attach on_bytes', function()
     end)
 
     it('inccomand=nosplit and substitute', function()
-      local check_events = setup_eventcheck(verify, {"abcde"})
+      local check_events = setup_eventcheck(verify,
+                                            {"abcde", "12345"})
       meths.set_option('inccommand', 'nosplit')
 
-      feed ':%s/bcd/'
+      -- linewise substitute
+      feed(':%s/bcd/')
       check_events {
         { "test1", "bytes", 1, 3, 0, 1, 1, 0, 3, 3, 0, 0, 0 };
         { "test1", "bytes", 1, 5, 0, 1, 1, 0, 0, 0, 0, 3, 3 };
       }
 
-      feed 'a'
+      feed('a')
       check_events {
         { "test1", "bytes", 1, 3, 0, 1, 1, 0, 3, 3, 0, 1, 1 };
         { "test1", "bytes", 1, 5, 0, 1, 1, 0, 1, 1, 0, 3, 3 };
+      }
+
+      feed("<esc>")
+
+      -- splitting lines
+      feed([[:%s/abc/\r]])
+      check_events {
+        { "test1", "bytes", 1, 3, 0, 0, 0, 0, 3, 3, 1, 0, 1 };
+        { "test1", "bytes", 1, 6, 0, 0, 0, 1, 0, 1, 0, 3, 3 };
+      }
+
+      feed("<esc>")
+      -- multi-line regex
+      feed([[:%s/de\n123/a]])
+
+      check_events {
+        { "test1", "bytes", 1, 3, 0, 3, 3, 1, 3, 6, 0, 1, 1 };
+        { "test1", "bytes", 1, 6, 0, 3, 3, 0, 1, 1, 1, 3, 6 };
+      }
+
+      feed("<esc>")
+      -- replacing with unicode
+      feed(":%s/b/→")
+
+      check_events {
+        { "test1", "bytes", 1, 3, 0, 1, 1, 0, 1, 1, 0, 3, 3 };
+        { "test1", "bytes", 1, 5, 0, 1, 1, 0, 3, 3, 0, 1, 1 };
+      }
+
+      feed("<esc>")
+      -- replacing with escaped characters
+      feed([[:%s/b/\\]])
+      check_events {
+        { "test1", "bytes", 1, 3, 0, 1, 1, 0, 1, 1, 0, 1, 1 };
+        { "test1", "bytes", 1, 5, 0, 1, 1, 0, 1, 1, 0, 1, 1 };
+      }
+
+      feed("<esc>")
+      -- replacing with expression register
+      feed([[:%s/b/\=5+5]])
+      check_events {
+        { "test1", "bytes", 1, 3, 0, 1, 1, 0, 1, 1, 0, 2, 2 };
+        { "test1", "bytes", 1, 5, 0, 1, 1, 0, 2, 2, 0, 1, 1 };
       }
     end)
 
@@ -824,6 +899,63 @@ describe('lua: nvim_buf_attach on_bytes', function()
         { "test1", "bytes", 1, 4, 2, 0, 9, 0, 0, 0, 0, 3, 3 },
       }
 
+    end)
+
+    it(":luado", function()
+      local check_events = setup_eventcheck(verify, {"abc", "12345"})
+
+      command(".luado return 'a'")
+
+      check_events {
+        { "test1", "bytes", 1, 3, 0, 0, 0, 0, 3, 3, 0, 1, 1 };
+      }
+
+      command("luado return 10")
+
+      check_events {
+        { "test1", "bytes", 1, 4, 0, 0, 0, 0, 1, 1, 0, 2, 2 };
+        { "test1", "bytes", 1, 5, 1, 0, 3, 0, 5, 5, 0, 2, 2 };
+      }
+
+    end)
+
+    it("flushes deleted bytes on move", function()
+      local check_events = setup_eventcheck(verify, {"AAA", "BBB", "CCC", "DDD"})
+
+      feed(":.move+1<cr>")
+
+      check_events {
+        { "test1", "bytes", 1, 5, 0, 0, 0, 1, 0, 4, 0, 0, 0 };
+        { "test1", "bytes", 1, 5, 1, 0, 4, 0, 0, 0, 1, 0, 4 };
+      }
+
+      feed("jd2j")
+
+      check_events {
+        { "test1", "bytes", 1, 6, 2, 0, 8, 2, 0, 8, 0, 0, 0 };
+      }
+    end)
+
+    it("block visual paste", function()
+      local check_events = setup_eventcheck(verify, {"AAA",
+                                                     "BBB",
+                                                     "CCC",
+                                                     "DDD",
+                                                     "EEE",
+                                                     "FFF"})
+      funcs.setreg("a", "___")
+      feed([[gg0l<c-v>3jl"ap]])
+
+      check_events {
+        { "test1", "bytes", 1, 3, 0, 1, 1, 0, 2, 2, 0, 0, 0 };
+        { "test1", "bytes", 1, 3, 1, 1, 3, 0, 2, 2, 0, 0, 0 };
+        { "test1", "bytes", 1, 3, 2, 1, 5, 0, 2, 2, 0, 0, 0 };
+        { "test1", "bytes", 1, 3, 3, 1, 7, 0, 2, 2, 0, 0, 0 };
+        { "test1", "bytes", 1, 5, 0, 1, 1, 0, 0, 0, 0, 3, 3 };
+        { "test1", "bytes", 1, 6, 1, 1, 6, 0, 0, 0, 0, 3, 3 };
+        { "test1", "bytes", 1, 7, 2, 1, 11, 0, 0, 0, 0, 3, 3 };
+        { "test1", "bytes", 1, 8, 3, 1, 16, 0, 0, 0, 0, 3, 3 };
+      }
     end)
 
     teardown(function()

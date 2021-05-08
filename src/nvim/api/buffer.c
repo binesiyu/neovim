@@ -1426,6 +1426,10 @@ Array nvim_buf_get_extmarks(Buffer buffer, Integer ns_id,
 ///                 - "eol": right after eol character (default)
 ///                 - "overlay": display over the specified column, without
 ///                              shifting the underlying text.
+///                 - "right_align": display right aligned in the window.
+///               - virt_text_win_col : position the virtual text at a fixed
+///                                     window column (starting from the first
+///                                     text column)
 ///               - virt_text_hide : hide the virtual text when the background
 ///                                  text is selected or hidden due to
 ///                                  horizontal scroll 'nowrap'
@@ -1437,6 +1441,10 @@ Array nvim_buf_get_extmarks(Buffer buffer, Integer ns_id,
 ///                              default
 ///                 - "combine": combine with background text color
 ///                 - "blend": blend with background text color.
+///               - hl_eol : when true, for a multiline highlight covering the
+///                          EOL of a line, continue the highlight for the rest
+///                          of the screen line (just like for diff and
+///                          cursorline highlight).
 ///
 ///               - ephemeral : for use with |nvim_set_decoration_provider|
 ///                   callbacks. The mark will only be used for the current
@@ -1570,14 +1578,30 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id,
         decor.virt_text_pos = kVTEndOfLine;
       } else if (strequal("overlay", str.data)) {
         decor.virt_text_pos = kVTOverlay;
+      } else if (strequal("right_align", str.data)) {
+        decor.virt_text_pos = kVTRightAlign;
       } else {
         api_set_error(err, kErrorTypeValidation,
                       "virt_text_pos: invalid value");
         goto error;
       }
+    } else if (strequal("virt_text_win_col",  k.data)) {
+      if (v->type != kObjectTypeInteger) {
+        api_set_error(err, kErrorTypeValidation,
+                      "virt_text_win_col is not a Number of the correct size");
+        goto error;
+      }
+
+      decor.col = (int)v->data.integer;
+      decor.virt_text_pos = kVTWinCol;
     } else if (strequal("virt_text_hide", k.data)) {
       decor.virt_text_hide = api_object_to_bool(*v,
                                                 "virt_text_hide", false, err);
+      if (ERROR_SET(err)) {
+        goto error;
+      }
+    } else if (strequal("hl_eol", k.data)) {
+      decor.hl_eol = api_object_to_bool(*v, "hl_eol", false, err);
       if (ERROR_SET(err)) {
         goto error;
       }
@@ -1664,12 +1688,22 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id,
     col2 = 0;
   }
 
+  if (decor.virt_text_pos == kVTRightAlign) {
+    decor.col = 0;
+    for (size_t i = 0; i < kv_size(decor.virt_text); i++) {
+      decor.col
+          += (int)mb_string2cells((char_u *)kv_A(decor.virt_text, i).text);
+    }
+  }
+
+
   Decoration *d = NULL;
 
   if (ephemeral) {
     d = &decor;
   } else if (kv_size(decor.virt_text)
-             || decor.priority != DECOR_PRIORITY_BASE) {
+             || decor.priority != DECOR_PRIORITY_BASE
+             || decor.hl_eol) {
     // TODO(bfredl): this is a bit sketchy. eventually we should
     // have predefined decorations for both marks/ephemerals
     d = xcalloc(1, sizeof(*d));
@@ -1680,7 +1714,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id,
 
   // TODO(bfredl): synergize these two branches even more
   if (ephemeral && decor_state.buf == buf) {
-    decor_add_ephemeral((int)line, (int)col, line2, col2, &decor, 0);
+    decor_add_ephemeral((int)line, (int)col, line2, col2, &decor);
   } else {
     if (ephemeral) {
       api_set_error(err, kErrorTypeException, "not yet implemented");

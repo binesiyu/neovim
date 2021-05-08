@@ -213,6 +213,9 @@ static struct vimvar {
   VV(VV_FALSE,          "false",            VAR_BOOL, VV_RO),
   VV(VV_TRUE,           "true",             VAR_BOOL, VV_RO),
   VV(VV_NULL,           "null",             VAR_SPECIAL, VV_RO),
+  VV(VV_NUMBERMAX,      "numbermax",        VAR_NUMBER, VV_RO),
+  VV(VV_NUMBERMIN,      "numbermin",        VAR_NUMBER, VV_RO),
+  VV(VV_NUMBERSIZE,     "numbersize",       VAR_NUMBER, VV_RO),
   VV(VV_VIM_DID_ENTER,  "vim_did_enter",    VAR_NUMBER, VV_RO),
   VV(VV_TESTING,        "testing",          VAR_NUMBER, 0),
   VV(VV_TYPE_NUMBER,    "t_number",         VAR_NUMBER, VV_RO),
@@ -394,6 +397,9 @@ void eval_init(void)
   set_vim_var_bool(VV_FALSE, kBoolVarFalse);
   set_vim_var_bool(VV_TRUE, kBoolVarTrue);
   set_vim_var_special(VV_NULL, kSpecialVarNull);
+  set_vim_var_nr(VV_NUMBERMAX, VARNUMBER_MAX);
+  set_vim_var_nr(VV_NUMBERMIN, VARNUMBER_MIN);
+  set_vim_var_nr(VV_NUMBERSIZE, sizeof(varnumber_T) * 8);
   set_vim_var_special(VV_EXITING, kSpecialVarNull);
 
   set_vim_var_nr(VV_ECHOSPACE,    sc_col - 1);
@@ -1569,7 +1575,7 @@ static const char_u *skip_var_list(const char_u *arg, int *var_count,
         break;
       else if (*p == ';') {
         if (*semicolon == 1) {
-          EMSG(_("Double ; in list of variables"));
+          EMSG(_("E452: Double ; in list of variables"));
           return NULL;
         }
         *semicolon = 1;
@@ -3417,8 +3423,7 @@ static int eval4(char_u **arg, typval_T *rettv, int evaluate)
 {
   typval_T var2;
   char_u      *p;
-  exptype_T type = TYPE_UNKNOWN;
-  bool type_is = false;             // true for "is" and "isnot"
+  exprtype_T type = EXPR_UNKNOWN;
   int len = 2;
   bool ic;
 
@@ -3430,35 +3435,42 @@ static int eval4(char_u **arg, typval_T *rettv, int evaluate)
 
   p = *arg;
   switch (p[0]) {
-  case '=':   if (p[1] == '=')
-      type = TYPE_EQUAL;
-    else if (p[1] == '~')
-      type = TYPE_MATCH;
+  case '=':
+    if (p[1] == '=') {
+      type = EXPR_EQUAL;
+    } else if (p[1] == '~') {
+      type = EXPR_MATCH;
+    }
     break;
-  case '!':   if (p[1] == '=')
-      type = TYPE_NEQUAL;
-    else if (p[1] == '~')
-      type = TYPE_NOMATCH;
+  case '!':
+    if (p[1] == '=') {
+      type = EXPR_NEQUAL;
+    } else if (p[1] == '~') {
+      type = EXPR_NOMATCH;
+    }
     break;
-  case '>':   if (p[1] != '=') {
-      type = TYPE_GREATER;
+  case '>':
+    if (p[1] != '=') {
+      type = EXPR_GREATER;
       len = 1;
-  } else
-      type = TYPE_GEQUAL;
+    } else {
+      type = EXPR_GEQUAL;
+    }
     break;
-  case '<':   if (p[1] != '=') {
-      type = TYPE_SMALLER;
+  case '<':
+    if (p[1] != '=') {
+      type = EXPR_SMALLER;
       len = 1;
-  } else
-      type = TYPE_SEQUAL;
+    } else {
+      type = EXPR_SEQUAL;
+    }
     break;
   case 'i':   if (p[1] == 's') {
       if (p[2] == 'n' && p[3] == 'o' && p[4] == 't') {
         len = 5;
       }
       if (!isalnum(p[len]) && p[len] != '_') {
-        type = len == 2 ? TYPE_EQUAL : TYPE_NEQUAL;
-        type_is = true;
+        type = len == 2 ? EXPR_IS : EXPR_ISNOT;
       }
   }
     break;
@@ -3467,7 +3479,7 @@ static int eval4(char_u **arg, typval_T *rettv, int evaluate)
   /*
    * If there is a comparative operator, use it.
    */
-  if (type != TYPE_UNKNOWN) {
+  if (type != EXPR_UNKNOWN) {
     // extra question mark appended: ignore case
     if (p[len] == '?') {
       ic = true;
@@ -3486,7 +3498,7 @@ static int eval4(char_u **arg, typval_T *rettv, int evaluate)
       return FAIL;
     }
     if (evaluate) {
-      const int ret = typval_compare(rettv, &var2, type, type_is, ic);
+      const int ret = typval_compare(rettv, &var2, type, ic);
 
       tv_clear(&var2);
       return ret;
@@ -10582,27 +10594,27 @@ bool invoke_prompt_interrupt(void)
 int typval_compare(
     typval_T *typ1,   // first operand
     typval_T *typ2,   // second operand
-    exptype_T type,   // operator
-    bool type_is,     // true for "is" and "isnot"
+    exprtype_T type,  // operator
     bool ic           // ignore case
 )
   FUNC_ATTR_NONNULL_ALL
 {
   varnumber_T n1, n2;
+  const bool type_is = type == EXPR_IS || type == EXPR_ISNOT;
 
   if (type_is && typ1->v_type != typ2->v_type) {
     // For "is" a different type always means false, for "notis"
     // it means true.
-    n1 = type == TYPE_NEQUAL;
+    n1 = type == EXPR_ISNOT;
   } else if (typ1->v_type == VAR_LIST || typ2->v_type == VAR_LIST) {
     if (type_is) {
       n1 = typ1->v_type == typ2->v_type
         && typ1->vval.v_list == typ2->vval.v_list;
-      if (type == TYPE_NEQUAL) {
+      if (type == EXPR_ISNOT) {
         n1 = !n1;
       }
     } else if (typ1->v_type != typ2->v_type
-               || (type != TYPE_EQUAL && type != TYPE_NEQUAL)) {
+               || (type != EXPR_EQUAL && type != EXPR_NEQUAL)) {
       if (typ1->v_type != typ2->v_type) {
         EMSG(_("E691: Can only compare List with List"));
       } else {
@@ -10613,7 +10625,7 @@ int typval_compare(
     } else {
       // Compare two Lists for being equal or unequal.
       n1 = tv_list_equal(typ1->vval.v_list, typ2->vval.v_list, ic, false);
-      if (type == TYPE_NEQUAL) {
+      if (type == EXPR_NEQUAL) {
         n1 = !n1;
       }
     }
@@ -10621,11 +10633,11 @@ int typval_compare(
     if (type_is) {
       n1 = typ1->v_type == typ2->v_type
         && typ1->vval.v_dict == typ2->vval.v_dict;
-      if (type == TYPE_NEQUAL) {
+      if (type == EXPR_ISNOT) {
         n1 = !n1;
       }
     } else if (typ1->v_type != typ2->v_type
-               || (type != TYPE_EQUAL && type != TYPE_NEQUAL)) {
+               || (type != EXPR_EQUAL && type != EXPR_NEQUAL)) {
       if (typ1->v_type != typ2->v_type) {
         EMSG(_("E735: Can only compare Dictionary with Dictionary"));
       } else {
@@ -10636,12 +10648,13 @@ int typval_compare(
     } else {
       // Compare two Dictionaries for being equal or unequal.
       n1 = tv_dict_equal(typ1->vval.v_dict, typ2->vval.v_dict, ic, false);
-      if (type == TYPE_NEQUAL) {
+      if (type == EXPR_NEQUAL) {
         n1 = !n1;
       }
     }
   } else if (tv_is_func(*typ1) || tv_is_func(*typ2)) {
-    if (type != TYPE_EQUAL && type != TYPE_NEQUAL) {
+    if (type != EXPR_EQUAL && type != EXPR_NEQUAL
+        && type != EXPR_IS && type != EXPR_ISNOT) {
       EMSG(_("E694: Invalid operation for Funcrefs"));
       tv_clear(typ1);
       return FAIL;
@@ -10663,43 +10676,47 @@ int typval_compare(
     } else {
       n1 = tv_equal(typ1, typ2, ic, false);
     }
-    if (type == TYPE_NEQUAL) {
+    if (type == EXPR_NEQUAL || type == EXPR_ISNOT) {
       n1 = !n1;
     }
   } else if ((typ1->v_type == VAR_FLOAT || typ2->v_type == VAR_FLOAT)
-             && type != TYPE_MATCH && type != TYPE_NOMATCH) {
+             && type != EXPR_MATCH && type != EXPR_NOMATCH) {
     // If one of the two variables is a float, compare as a float.
     // When using "=~" or "!~", always compare as string.
     const float_T f1 = tv_get_float(typ1);
     const float_T f2 = tv_get_float(typ2);
     n1 = false;
     switch (type) {
-      case TYPE_EQUAL:    n1 = f1 == f2; break;
-      case TYPE_NEQUAL:   n1 = f1 != f2; break;
-      case TYPE_GREATER:  n1 = f1 > f2; break;
-      case TYPE_GEQUAL:   n1 = f1 >= f2; break;
-      case TYPE_SMALLER:  n1 = f1 < f2; break;
-      case TYPE_SEQUAL:   n1 = f1 <= f2; break;
-      case TYPE_UNKNOWN:
-      case TYPE_MATCH:
-      case TYPE_NOMATCH:  break;
+      case EXPR_IS:
+      case EXPR_EQUAL:    n1 = f1 == f2; break;
+      case EXPR_ISNOT:
+      case EXPR_NEQUAL:   n1 = f1 != f2; break;
+      case EXPR_GREATER:  n1 = f1 > f2; break;
+      case EXPR_GEQUAL:   n1 = f1 >= f2; break;
+      case EXPR_SMALLER:  n1 = f1 < f2; break;
+      case EXPR_SEQUAL:   n1 = f1 <= f2; break;
+      case EXPR_UNKNOWN:
+      case EXPR_MATCH:
+      case EXPR_NOMATCH:  break;  // avoid gcc warning
     }
   } else if ((typ1->v_type == VAR_NUMBER || typ2->v_type == VAR_NUMBER)
-             && type != TYPE_MATCH && type != TYPE_NOMATCH) {
+             && type != EXPR_MATCH && type != EXPR_NOMATCH) {
     // If one of the two variables is a number, compare as a number.
     // When using "=~" or "!~", always compare as string.
     n1 = tv_get_number(typ1);
     n2 = tv_get_number(typ2);
     switch (type) {
-      case TYPE_EQUAL:    n1 = n1 == n2; break;
-      case TYPE_NEQUAL:   n1 = n1 != n2; break;
-      case TYPE_GREATER:  n1 = n1 > n2; break;
-      case TYPE_GEQUAL:   n1 = n1 >= n2; break;
-      case TYPE_SMALLER:  n1 = n1 < n2; break;
-      case TYPE_SEQUAL:   n1 = n1 <= n2; break;
-      case TYPE_UNKNOWN:
-      case TYPE_MATCH:
-      case TYPE_NOMATCH:  break;
+      case EXPR_IS:
+      case EXPR_EQUAL:    n1 = n1 == n2; break;
+      case EXPR_ISNOT:
+      case EXPR_NEQUAL:   n1 = n1 != n2; break;
+      case EXPR_GREATER:  n1 = n1 > n2; break;
+      case EXPR_GEQUAL:   n1 = n1 >= n2; break;
+      case EXPR_SMALLER:  n1 = n1 < n2; break;
+      case EXPR_SEQUAL:   n1 = n1 <= n2; break;
+      case EXPR_UNKNOWN:
+      case EXPR_MATCH:
+      case EXPR_NOMATCH:  break;  // avoid gcc warning
     }
   } else {
     char buf1[NUMBUFLEN];
@@ -10707,28 +10724,30 @@ int typval_compare(
     const char *const s1 = tv_get_string_buf(typ1, buf1);
     const char *const s2 = tv_get_string_buf(typ2, buf2);
     int i;
-    if (type != TYPE_MATCH && type != TYPE_NOMATCH) {
+    if (type != EXPR_MATCH && type != EXPR_NOMATCH) {
       i = mb_strcmp_ic(ic, s1, s2);
     } else {
       i = 0;
     }
     n1 = false;
     switch (type) {
-      case TYPE_EQUAL:    n1 = i == 0; break;
-      case TYPE_NEQUAL:   n1 = i != 0; break;
-      case TYPE_GREATER:  n1 = i > 0; break;
-      case TYPE_GEQUAL:   n1 = i >= 0; break;
-      case TYPE_SMALLER:  n1 = i < 0; break;
-      case TYPE_SEQUAL:   n1 = i <= 0; break;
+      case EXPR_IS:
+      case EXPR_EQUAL:    n1 = i == 0; break;
+      case EXPR_ISNOT:
+      case EXPR_NEQUAL:   n1 = i != 0; break;
+      case EXPR_GREATER:  n1 = i > 0; break;
+      case EXPR_GEQUAL:   n1 = i >= 0; break;
+      case EXPR_SMALLER:  n1 = i < 0; break;
+      case EXPR_SEQUAL:   n1 = i <= 0; break;
 
-      case TYPE_MATCH:
-      case TYPE_NOMATCH:
+      case EXPR_MATCH:
+      case EXPR_NOMATCH:
         n1 = pattern_match((char_u *)s2, (char_u *)s1, ic);
-        if (type == TYPE_NOMATCH) {
+        if (type == EXPR_NOMATCH) {
           n1 = !n1;
         }
         break;
-      case TYPE_UNKNOWN: break;  // Avoid gcc warning.
+      case EXPR_UNKNOWN:  break;  // avoid gcc warning
     }
   }
   tv_clear(typ1);

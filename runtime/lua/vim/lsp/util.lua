@@ -18,6 +18,40 @@ end
 
 local M = {}
 
+local default_border = {
+  {"", "NormalFloat"},
+  {"", "NormalFloat"},
+  {"", "NormalFloat"},
+  {" ", "NormalFloat"},
+  {"", "NormalFloat"},
+  {"", "NormalFloat"},
+  {"", "NormalFloat"},
+  {" ", "NormalFloat"},
+}
+
+--@private
+-- Check the border given by opts or the default border for the additional
+-- size it adds to a float.
+--@returns size of border in height and width
+local function get_border_size(opts)
+  local border = opts and opts.border or default_border
+  local height = 0
+  local width = 0
+
+  if type(border) == 'string' then
+    -- 'single', 'double', etc.
+    height = 2
+    width = 2
+  else
+    height = height + vim.fn.strdisplaywidth(border[2][1])  -- top
+    height = height + vim.fn.strdisplaywidth(border[6][1])  -- bottom
+    width  = width  + vim.fn.strdisplaywidth(border[4][1])  -- right
+    width  = width  + vim.fn.strdisplaywidth(border[8][1])  -- left
+  end
+
+  return { height = height, width = width }
+end
+
 --@private
 local function split_lines(value)
   return split(value, '\n', true)
@@ -436,6 +470,7 @@ function M.apply_text_document_edit(text_document_edit, index)
   -- `VersionedTextDocumentIdentifier`s version may be null
   --  https://microsoft.github.io/language-server-protocol/specification#versionedTextDocumentIdentifier
   if should_check_version and (text_document.version
+      and text_document.version > 0
       and M.buf_versions[bufnr]
       and M.buf_versions[bufnr] > text_document.version) then
     print("Buffer ", text_document.uri, " newer than edits.")
@@ -856,7 +891,7 @@ function M.make_floating_popup_options(width, height, opts)
   else
     anchor = anchor..'S'
     height = math.min(lines_above, height)
-    row = 0
+    row = -get_border_size(opts).height
   end
 
   if vim.fn.wincol() + width <= api.nvim_get_option('columns') then
@@ -875,17 +910,25 @@ function M.make_floating_popup_options(width, height, opts)
     row = row + (opts.offset_y or 0),
     style = 'minimal',
     width = width,
-    border = opts.border or {
-      {"", "NormalFloat"},
-      {"", "NormalFloat"},
-      {"", "NormalFloat"},
-      {" ", "NormalFloat"},
-      {"", "NormalFloat"},
-      {"", "NormalFloat"},
-      {"", "NormalFloat"},
-      {" ", "NormalFloat"}
-    },
+    border = opts.border or default_border,
   }
+end
+
+local function _should_add_to_tagstack(new_item)
+  local stack = vim.fn.gettagstack()
+
+  -- Check if we're at the bottom of the tagstack.
+  if stack.curidx <= 1 then return true end
+
+  local top_item = stack.items[stack.curidx-1]
+
+  -- Check if the item at the top of the tagstack is exactly the
+  -- same as the one we want to push.
+  if top_item.tagname ~= new_item.tagname then return true end
+  for i, v in ipairs(top_item.from) do
+    if v ~= new_item.from[i] then return true end
+  end
+  return false
 end
 
 --- Jumps to a location.
@@ -896,22 +939,36 @@ function M.jump_to_location(location)
   -- location may be Location or LocationLink
   local uri = location.uri or location.targetUri
   if uri == nil then return end
-  local bufnr = vim.uri_to_bufnr(uri)
-  -- Save position in jumplist
-  vim.cmd "normal! m'"
 
-  -- Push a new item into tagstack
-  local from = {vim.fn.bufnr('%'), vim.fn.line('.'), vim.fn.col('.'), 0}
-  local items = {{tagname=vim.fn.expand('<cword>'), from=from}}
-  vim.fn.settagstack(vim.fn.win_getid(), {items=items}, 't')
+  local from_bufnr = vim.fn.bufnr('%')
+  local from = {from_bufnr, vim.fn.line('.'), vim.fn.col('.'), 0}
+  local item = {tagname=vim.fn.expand('<cword>'), from=from}
+
+  -- Save position in jumplist
+  vim.cmd("mark '")
 
   --- Jump to new location (adjusting for UTF-16 encoding of characters)
+  local bufnr = vim.uri_to_bufnr(uri)
   api.nvim_set_current_buf(bufnr)
   api.nvim_buf_set_option(0, 'buflisted', true)
   local range = location.range or location.targetSelectionRange
   local row = range.start.line
   local col = get_line_byte_from_position(0, range.start)
+  -- This prevents the tagstack to be filled with items that provide
+  -- no motion when CTRL-T is pressed because they're both the source
+  -- and the destination.
+  local motionless =
+    bufnr == from_bufnr and
+    row+1 == from[2] and col+1 == from[3]
+  if not motionless and _should_add_to_tagstack(item) then
+    local winid = vim.fn.win_getid()
+    local items = {item}
+    vim.fn.settagstack(winid, {items=items}, 't')
+  end
+
+  -- Jump to new location
   api.nvim_win_set_cursor(0, {row + 1, col})
+
   return true
 end
 
@@ -1185,6 +1242,20 @@ function M._make_floating_popup_size(contents, opts)
       width = math.max(line_widths[i], width)
     end
   end
+
+  local border_width = get_border_size(opts).width
+  local screen_width = api.nvim_win_get_width(0)
+  width = math.min(width, screen_width)
+
+  -- make sure borders are always inside the screen
+  if width + border_width > screen_width then
+    width = width - (width + border_width - screen_width)
+  end
+
+  if wrap_at and wrap_at > width then
+    wrap_at = width
+  end
+
   if max_width then
     width = math.min(width, max_width)
     wrap_at = math.min(wrap_at or max_width, max_width)

@@ -142,6 +142,9 @@ typedef enum {
     VV_FALSE,
     VV_TRUE,
     VV_NULL,
+    VV_NUMBERMAX,
+    VV_NUMBERMIN,
+    VV_NUMBERSIZE,
     VV_VIM_DID_ENTER,
     VV_TESTING,
     VV_TYPE_NUMBER,
@@ -230,16 +233,18 @@ typedef enum
 
 /// types for expressions.
 typedef enum {
-  TYPE_UNKNOWN = 0,
-  TYPE_EQUAL,         ///< ==
-  TYPE_NEQUAL,        ///< !=
-  TYPE_GREATER,       ///< >
-  TYPE_GEQUAL,        ///< >=
-  TYPE_SMALLER,       ///< <
-  TYPE_SEQUAL,        ///< <=
-  TYPE_MATCH,         ///< =~
-  TYPE_NOMATCH,       ///< !~
-} exptype_T;
+  EXPR_UNKNOWN = 0,
+  EXPR_EQUAL,         ///< ==
+  EXPR_NEQUAL,        ///< !=
+  EXPR_GREATER,       ///< >
+  EXPR_GEQUAL,        ///< >=
+  EXPR_SMALLER,       ///< <
+  EXPR_SEQUAL,        ///< <=
+  EXPR_MATCH,         ///< =~
+  EXPR_NOMATCH,       ///< !~
+  EXPR_IS,            ///< is
+  EXPR_ISNOT,         ///< isnot
+} exprtype_T;
 
 /// Type for dict_list function
 typedef enum {

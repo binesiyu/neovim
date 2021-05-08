@@ -876,7 +876,7 @@ debuggy_find(
           debug_newval = typval_tostring(bp->dbg_val);
           line = true;
         } else {
-          if (typval_compare(tv, bp->dbg_val, TYPE_EQUAL, true, false) == OK
+          if (typval_compare(tv, bp->dbg_val, EXPR_IS, false) == OK
               && tv->vval.v_number == false) {
             line = true;
             debug_oldval = typval_tostring(bp->dbg_val);
@@ -2719,16 +2719,10 @@ static char_u *get_str_line(int c, void *cookie, int indent, bool do_concat)
   while (!(p->buf[i] == '\n' || p->buf[i] == '\0')) {
     i++;
   }
-  char buf[2046];
-  char *dst;
-  dst = xstpncpy(buf, (char *)p->buf + p->offset, i - p->offset);
-  if ((uint32_t)(dst - buf) != i - p->offset) {
-    smsg(_(":source error parsing command %s"), p->buf);
-    return NULL;
-  }
-  buf[i - p->offset] = '\0';
+  size_t line_length = i - p->offset;
+  char_u *buf = xmemdupz(p->buf + p->offset, line_length);
   p->offset = i + 1;
-  return (char_u *)xstrdup(buf);
+  return buf;
 }
 
 static int source_using_linegetter(void *cookie,
