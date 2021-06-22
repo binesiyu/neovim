@@ -714,7 +714,7 @@ au BufNewFile,BufRead *.haml			setf haml
 au BufNewFile,BufRead *.hsm			setf hamster
 
 " Haskell
-au BufNewFile,BufRead *.hs,*.hsc,*.hs-boot	setf haskell
+au BufNewFile,BufRead *.hs,*.hsc,*.hs-boot,*.hsig setf haskell
 au BufNewFile,BufRead *.lhs			setf lhaskell
 au BufNewFile,BufRead *.chs			setf chaskell
 au BufNewFile,BufRead cabal.project		setf cabalproject
@@ -850,6 +850,9 @@ au BufNewFile,BufRead *.jov,*.j73,*.jovial	setf jovial
 
 " JSON
 au BufNewFile,BufRead *.json,*.jsonp,*.webmanifest	setf json
+
+" Jupyter Notebook is also json
+au BufNewFile,BufRead *.ipynb				setf json
 
 " Kixtart
 au BufNewFile,BufRead *.kix			setf kix
@@ -1015,6 +1018,7 @@ au BufNewFile,BufRead *.hgrc,*hgrc		setf cfg
 
 " Meson Build system config
 au BufNewFile,BufRead meson.build,meson_options.txt setf meson
+au BufNewFile,BufRead *.wrap			setf dosini
 
 " Messages (logs mostly)
 au BufNewFile,BufRead */log/{auth,cron,daemon,debug,kern,lpr,mail,messages,news/news,syslog,user}{,.log,.err,.info,.warn,.crit,.notice}{,.[0-9]*,-[0-9]*} setf messages
@@ -2302,6 +2306,7 @@ au BufNewFile,BufRead *.txt
 " Use the filetype detect plugins.  They may overrule any of the previously
 " detected filetypes.
 runtime! ftdetect/*.vim
+runtime! ftdetect/*.lua
 
 " NOTE: The above command could have ended the filetypedetect autocmd group
 " and started another one. Let's make sure it has ended to get to a consistent

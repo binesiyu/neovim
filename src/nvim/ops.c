@@ -156,6 +156,9 @@ int get_op_type(int char1, int char2)
     // subtract
     return OP_NR_SUB;
   }
+  if (char1 == 'z' && char2 == 'y') {  // OP_YANK
+    return OP_YANK;
+  }
   for (i = 0;; i++) {
     if (opchars[i][0] == char1 && opchars[i][1] == char2) {
       break;
@@ -1676,17 +1679,14 @@ int op_delete(oparg_T *oap)
 
       curbuf_splice_pending++;
       pos_T startpos = curwin->w_cursor;  // start position for delete
-      bcount_t deleted_bytes = (bcount_t)STRLEN(
-          ml_get(startpos.lnum)) + 1 - startpos.col;
+      bcount_t deleted_bytes = get_region_bytecount(
+          curbuf, startpos.lnum, oap->end.lnum, startpos.col,
+          oap->end.col) + oap->inclusive;
       truncate_line(true);        // delete from cursor to end of line
 
       curpos = curwin->w_cursor;  // remember curwin->w_cursor
       curwin->w_cursor.lnum++;
 
-      for (linenr_T i = 1; i <= oap->line_count - 2; i++) {
-        deleted_bytes += (bcount_t)STRLEN(
-            ml_get(startpos.lnum + i)) + 1;
-      }
       del_lines(oap->line_count - 2, false);
 
       // delete from start of line until op_end
@@ -1694,7 +1694,6 @@ int op_delete(oparg_T *oap)
       curwin->w_cursor.col = 0;
       (void)del_bytes((colnr_T)n, !virtual_op,
                       oap->op_type == OP_DELETE && !oap->is_VIsual);
-      deleted_bytes += n;
       curwin->w_cursor = curpos;  // restore curwin->w_cursor
       (void)do_join(2, false, false, false, false);
       curbuf_splice_pending--;
@@ -2567,7 +2566,7 @@ static void op_yank_reg(oparg_T *oap, bool message, yankreg_T *reg, bool append)
     switch (reg->y_type) {
     case kMTBlockWise:
       block_prep(oap, &bd, lnum, false);
-      yank_copy_line(reg, &bd, y_idx);
+      yank_copy_line(reg, &bd, y_idx, oap->excl_tr_ws);
       break;
 
     case kMTLineWise:
@@ -2631,7 +2630,7 @@ static void op_yank_reg(oparg_T *oap, bool message, yankreg_T *reg, bool append)
         bd.textlen = endcol - startcol + oap->inclusive;
       }
       bd.textstart = p + startcol;
-      yank_copy_line(reg, &bd, y_idx);
+      yank_copy_line(reg, &bd, y_idx, false);
       break;
     }
     // NOTREACHED
@@ -2718,7 +2717,11 @@ static void op_yank_reg(oparg_T *oap, bool message, yankreg_T *reg, bool append)
   return;
 }
 
-static void yank_copy_line(yankreg_T *reg, struct block_def *bd, size_t y_idx)
+// Copy a block range into a register.
+// If "exclude_trailing_space" is set, do not copy trailing whitespaces.
+static void yank_copy_line(yankreg_T *reg, const struct block_def *bd,
+                           size_t y_idx, bool exclude_trailing_space)
+  FUNC_ATTR_NONNULL_ALL
 {
   int size = bd->startspaces + bd->endspaces + bd->textlen;
   assert(size >= 0);
@@ -2730,6 +2733,14 @@ static void yank_copy_line(yankreg_T *reg, struct block_def *bd, size_t y_idx)
   pnew += bd->textlen;
   memset(pnew, ' ', (size_t)bd->endspaces);
   pnew += bd->endspaces;
+  if (exclude_trailing_space) {
+    int s = bd->textlen + bd->endspaces;
+
+    while (ascii_iswhite(*(bd->textstart + s - 1)) && s > 0) {
+      s = s - utf_head_off(bd->textstart, bd->textstart + s - 1) - 1;
+      pnew--;
+    }
+  }
   *pnew = NUL;
 }
 
@@ -2792,13 +2803,13 @@ static void do_autocmd_textyankpost(oparg_T *oap, yankreg_T *reg)
   recursive = false;
 }
 
-/*
- * Put contents of register "regname" into the text.
- * Caller must check "regname" to be valid!
- * "flags": PUT_FIXINDENT     make indent look nice
- *          PUT_CURSEND       leave cursor after end of new text
- *          PUT_LINE          force linewise put (":put")
-    dir: BACKWARD for 'P', FORWARD for 'p' */
+// Put contents of register "regname" into the text.
+// Caller must check "regname" to be valid!
+// "flags": PUT_FIXINDENT     make indent look nice
+//          PUT_CURSEND       leave cursor after end of new text
+//          PUT_LINE          force linewise put (":put")
+//          PUT_BLOCK_INNER   in block mode, do not add trailing spaces
+// dir: BACKWARD for 'P', FORWARD for 'p'
 void do_put(int regname, yankreg_T *reg, int dir, long count, int flags)
 {
   char_u *ptr;
@@ -3130,7 +3141,7 @@ void do_put(int regname, yankreg_T *reg, int dir, long count, int flags)
     curwin->w_cursor.coladd = 0;
     bd.textcol = 0;
     for (i = 0; i < y_size; i++) {
-      int spaces;
+      int spaces = 0;
       char shortline;
       // can just be 0 or 1, needed for blockwise paste beyond the current
       // buffer end
@@ -3181,13 +3192,16 @@ void do_put(int regname, yankreg_T *reg, int dir, long count, int flags)
 
       yanklen = (int)STRLEN(y_array[i]);
 
-      // calculate number of spaces required to fill right side of block
-      spaces = y_width + 1;
-      for (long j = 0; j < yanklen; j++) {
-        spaces -= lbr_chartabsize(NULL, &y_array[i][j], 0);
-      }
-      if (spaces < 0) {
-        spaces = 0;
+      if ((flags & PUT_BLOCK_INNER) == 0) {
+        // calculate number of spaces required to fill right side of
+        // block
+        spaces = y_width + 1;
+        for (int j = 0; j < yanklen; j++) {
+          spaces -= lbr_chartabsize(NULL, &y_array[i][j], 0);
+        }
+        if (spaces < 0) {
+          spaces = 0;
+        }
       }
 
       // insert the new text
@@ -6302,4 +6316,34 @@ bool op_reg_set_previous(const char name)
 
   y_previous = &y_regs[i];
   return true;
+}
+
+/// Get the byte count of buffer region. End-exclusive.
+///
+/// @return number of bytes
+bcount_t get_region_bytecount(buf_T *buf, linenr_T start_lnum,
+                              linenr_T end_lnum, colnr_T start_col,
+                              colnr_T end_col)
+{
+  linenr_T max_lnum = buf->b_ml.ml_line_count;
+  if (start_lnum > max_lnum) {
+    return 0;
+  }
+  if (start_lnum == end_lnum) {
+    return end_col - start_col;
+  }
+  const char *first = (const char *)ml_get_buf(buf, start_lnum, false);
+  bcount_t deleted_bytes = (bcount_t)STRLEN(first) - start_col + 1;
+
+  for (linenr_T i = 1; i <= end_lnum-start_lnum-1; i++) {
+    if (start_lnum + i > max_lnum) {
+      return deleted_bytes;
+    }
+    deleted_bytes += (bcount_t)STRLEN(
+        ml_get_buf(buf, start_lnum + i, false)) + 1;
+  }
+  if (end_lnum > max_lnum) {
+    return deleted_bytes;
+  }
+  return deleted_bytes + end_col;
 }

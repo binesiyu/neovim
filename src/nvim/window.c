@@ -570,6 +570,45 @@ static void cmd_with_count(char *cmd, char_u *bufp, size_t bufsize,
   }
 }
 
+void win_set_buf(Window window, Buffer buffer, bool noautocmd, Error *err)
+{
+  win_T *win = find_window_by_handle(window, err), *save_curwin = curwin;
+  buf_T *buf = find_buffer_by_handle(buffer, err);
+  tabpage_T *tab = win_find_tabpage(win), *save_curtab = curtab;
+
+  if (!win || !buf) {
+    return;
+  }
+
+  if (noautocmd) {
+    block_autocmds();
+  }
+  if (switch_win_noblock(&save_curwin, &save_curtab, win, tab, false) == FAIL) {
+    api_set_error(err,
+                  kErrorTypeException,
+                  "Failed to switch to window %d",
+                  window);
+  }
+
+  try_start();
+  int result = do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, buf->b_fnum, 0);
+  if (!try_end(err) && result == FAIL) {
+    api_set_error(err,
+                  kErrorTypeException,
+                  "Failed to set buffer %d",
+                  buffer);
+  }
+
+  // If window is not current, state logic will not validate its cursor.
+  // So do it now.
+  validate_cursor();
+
+  restore_win_noblock(save_curwin, save_curtab, false);
+  if (noautocmd) {
+    unblock_autocmds();
+  }
+}
+
 /// Create a new float.
 ///
 /// if wp == NULL allocate a new window, otherwise turn existing window into a
@@ -763,10 +802,13 @@ void ui_ext_win_position(win_T *wp)
       }
       api_clear_error(&dummy);
     }
+
+    wp->w_grid_alloc.zindex = wp->w_float_config.zindex;
     if (ui_has(kUIMultigrid)) {
       String anchor = cstr_to_string(float_anchor_str[c.anchor]);
       ui_call_win_float_pos(wp->w_grid_alloc.handle, wp->handle, anchor,
-                            grid->handle, row, col, c.focusable);
+                            grid->handle, row, col, c.focusable,
+                            wp->w_grid_alloc.zindex);
     } else {
       // TODO(bfredl): ideally, compositor should work like any multigrid UI
       // and use standard win_pos events.
@@ -2286,7 +2328,7 @@ int win_close(win_T *win, bool free_buf)
     return FAIL;     // window is already being closed
   }
   if (win == aucmd_win) {
-    EMSG(_("E813: Cannot close autocmd window"));
+    EMSG(_(e_autocmd_close));
     return FAIL;
   }
   if ((firstwin == aucmd_win || lastwin == aucmd_win) && one_window()) {
@@ -2486,7 +2528,7 @@ int win_close(win_T *win, bool free_buf)
       // only resize that frame.  Otherwise resize all windows.
       win_equal(curwin, curwin->w_frame->fr_parent == win_frame, dir);
     } else {
-      win_comp_pos();
+      (void)win_comp_pos();
     }
   }
 
@@ -6254,9 +6296,10 @@ restore_snapshot (
       && curtab->tp_snapshot[idx]->fr_height == topframe->fr_height
       && check_snapshot_rec(curtab->tp_snapshot[idx], topframe) == OK) {
     wp = restore_snapshot_rec(curtab->tp_snapshot[idx], topframe);
-    win_comp_pos();
-    if (wp != NULL && close_curwin)
+    (void)win_comp_pos();
+    if (wp != NULL && close_curwin) {
       win_goto(wp);
+    }
     redraw_all_later(NOT_VALID);
   }
   clear_snapshot(curtab, idx);

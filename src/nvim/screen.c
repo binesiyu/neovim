@@ -1709,7 +1709,7 @@ static void win_update(win_T *wp, Providers *providers)
           && (wp->w_valid & (VALID_WCOL|VALID_WROW))
           != (VALID_WCOL|VALID_WROW)) {
         // A win_line() call applied a fix to screen cursor column to
-        // accomodate concealment of cursor line, but in this call to
+        // accommodate concealment of cursor line, but in this call to
         // update_topline() the cursor's row or column got invalidated.
         // If they are left invalid, setcursor() will recompute them
         // but there won't be any further win_line() call to re-fix the
@@ -2101,7 +2101,7 @@ static int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow,
   bool search_attr_from_match = false;  // if search_attr is from :match
   bool has_decor = false;               // this buffer has decoration
   bool do_virttext = false;             // draw virtual text for this line
-  int win_col_offset;                   // offsett for window columns
+  int win_col_offset = 0;               // offset for window columns
 
   char_u buf_fold[FOLD_TEXT_LEN + 1];   // Hold value returned by get_foldtext
 
@@ -2757,8 +2757,9 @@ static int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow,
               }
               if (wp->w_p_rl) {                       // reverse line numbers
                 // like rl_mirror(), but keep the space at the end
-                char_u *p2 = skiptowhite(extra) - 1;
-                for (char_u *p1 = extra; p1 < p2; p1++, p2--) {
+                char_u *p2 = skipwhite(extra);
+                p2 = skiptowhite(p2) - 1;
+                for (char_u *p1 = skipwhite(extra); p1 < p2; p1++, p2--) {
                   const int t = *p1;
                   *p1 = *p2;
                   *p2 = t;
@@ -4138,9 +4139,16 @@ static int win_line(win_T *wp, linenr_T lnum, int startrow, int endrow,
     // highlight the cursor position itself.
     // Also highlight the 'colorcolumn' if it is different than
     // 'cursorcolumn'
+    // Also highlight the 'colorcolumn' if 'breakindent' and/or 'showbreak'
+    // options are set
     vcol_save_attr = -1;
-    if (draw_state == WL_LINE && !lnum_in_visual_area
-        && search_attr == 0 && area_attr == 0) {
+    if ((draw_state == WL_LINE
+         || draw_state == WL_BRI
+         || draw_state == WL_SBR)
+        && !lnum_in_visual_area
+        && search_attr == 0
+        && area_attr == 0
+        && filler_todo <= 0) {
       if (wp->w_p_cuc && VCOL_HLC == (long)wp->w_virtcol
           && lnum != wp->w_cursor.lnum) {
         vcol_save_attr = char_attr;

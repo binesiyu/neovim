@@ -156,7 +156,7 @@ function M.formatting(options)
   if client == nil then return end
 
   local params = util.make_formatting_params(options)
-  return client.request("textDocument/formatting", params)
+  return client.request("textDocument/formatting", params, nil, vim.api.nvim_get_current_buf())
 end
 
 --- Performs |vim.lsp.buf.formatting()| synchronously.
@@ -176,7 +176,7 @@ function M.formatting_sync(options, timeout_ms)
   if client == nil then return end
 
   local params = util.make_formatting_params(options)
-  local result, err = client.request_sync("textDocument/formatting", params, timeout_ms)
+  local result, err = client.request_sync("textDocument/formatting", params, timeout_ms, vim.api.nvim_get_current_buf())
   if result and result.result then
     util.apply_text_edits(result.result)
   elseif err then
@@ -218,7 +218,7 @@ function M.formatting_seq_sync(options, timeout_ms, order)
   for _, client in ipairs(clients) do
     if client.resolved_capabilities.document_formatting then
       local params = util.make_formatting_params(options)
-      local result, err = client.request_sync("textDocument/formatting", params, timeout_ms)
+      local result, err = client.request_sync("textDocument/formatting", params, timeout_ms, vim.api.nvim_get_current_buf())
       if result and result.result then
         util.apply_text_edits(result.result)
       elseif err then
@@ -297,26 +297,31 @@ local function pick_call_hierarchy_item(call_hierarchy_items)
   return choice
 end
 
+--@private
+local function call_hierarchy(method)
+  local params = util.make_position_params()
+  request('textDocument/prepareCallHierarchy', params, function(err, _, result)
+    if err then
+      vim.notify(err.message, vim.log.levels.WARN)
+      return
+    end
+    local call_hierarchy_item = pick_call_hierarchy_item(result)
+    vim.lsp.buf_request(0, method, { item = call_hierarchy_item })
+  end)
+end
+
 --- Lists all the call sites of the symbol under the cursor in the
 --- |quickfix| window. If the symbol can resolve to multiple
 --- items, the user can pick one in the |inputlist|.
 function M.incoming_calls()
-  local params = util.make_position_params()
-  request('textDocument/prepareCallHierarchy', params, function(_, _, result)
-    local call_hierarchy_item = pick_call_hierarchy_item(result)
-    vim.lsp.buf_request(0, 'callHierarchy/incomingCalls', { item = call_hierarchy_item })
-  end)
+  call_hierarchy('callHierarchy/incomingCalls')
 end
 
 --- Lists all the items that are called by the symbol under the
 --- cursor in the |quickfix| window. If the symbol can resolve to
 --- multiple items, the user can pick one in the |inputlist|.
 function M.outgoing_calls()
-  local params = util.make_position_params()
-  request('textDocument/prepareCallHierarchy', params, function(_, _, result)
-    local call_hierarchy_item = pick_call_hierarchy_item(result)
-    vim.lsp.buf_request(0, 'callHierarchy/outgoingCalls', { item = call_hierarchy_item })
-  end)
+  call_hierarchy('callHierarchy/outgoingCalls')
 end
 
 --- List workspace folders.

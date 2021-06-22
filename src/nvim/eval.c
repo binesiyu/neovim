@@ -228,6 +228,7 @@ static struct vimvar {
   VV(VV_EVENT,          "event",            VAR_DICT, VV_RO),
   VV(VV_ECHOSPACE,      "echospace",        VAR_NUMBER, VV_RO),
   VV(VV_ARGV,           "argv",             VAR_LIST, VV_RO),
+  VV(VV_COLLATE,        "collate",          VAR_STRING, VV_RO),
   VV(VV_EXITING,        "exiting",          VAR_NUMBER, VV_RO),
   // Neovim
   VV(VV_STDERR,         "stderr",           VAR_NUMBER, VV_RO),
@@ -376,11 +377,9 @@ void eval_init(void)
   msgpack_types_dict->dv_lock = VAR_FIXED;
 
   set_vim_var_dict(VV_MSGPACK_TYPES, msgpack_types_dict);
-  set_vim_var_dict(VV_COMPLETED_ITEM, tv_dict_alloc());
+  set_vim_var_dict(VV_COMPLETED_ITEM, tv_dict_alloc_lock(VAR_FIXED));
 
-  dict_T *v_event = tv_dict_alloc();
-  v_event->dv_lock = VAR_FIXED;
-  set_vim_var_dict(VV_EVENT, v_event);
+  set_vim_var_dict(VV_EVENT, tv_dict_alloc_lock(VAR_FIXED));
   set_vim_var_list(VV_ERRORS, tv_list_alloc(kListLenUnknown));
   set_vim_var_nr(VV_STDERR,   CHAN_STDERR);
   set_vim_var_nr(VV_SEARCHFORWARD, 1L);
@@ -1620,7 +1619,7 @@ void list_hashtable_vars(hashtab_T *ht, const char *prefix, int empty,
       char buf[IOSIZE];
 
       // apply :filter /pat/ to variable name
-      xstrlcpy(buf, prefix, IOSIZE - 1);
+      xstrlcpy(buf, prefix, IOSIZE);
       xstrlcat(buf, (char *)di->di_key, IOSIZE);
       if (message_filtered((char_u *)buf)) {
         continue;
@@ -6327,7 +6326,7 @@ void get_qf_loc_list(int is_qf, win_T *wp, typval_T *what_arg,
   if (what_arg->v_type == VAR_UNKNOWN) {
     tv_list_alloc_ret(rettv, kListLenMayKnow);
     if (is_qf || wp != NULL) {
-      (void)get_errorlist(NULL, wp, -1, rettv->vval.v_list);
+      (void)get_errorlist(NULL, wp, -1, 0, rettv->vval.v_list);
     }
   } else {
     tv_dict_alloc_ret(rettv);
@@ -7201,9 +7200,13 @@ bool callback_from_typval(Callback *const callback, typval_T *const arg)
     r = FAIL;
   } else if (arg->v_type == VAR_FUNC || arg->v_type == VAR_STRING) {
     char_u *name = arg->vval.v_string;
-    func_ref(name);
-    callback->data.funcref = vim_strsave(name);
-    callback->type = kCallbackFuncref;
+    if (name != NULL) {
+      func_ref(name);
+      callback->data.funcref = vim_strsave(name);
+      callback->type = kCallbackFuncref;
+    } else {
+      r = FAIL;
+    }
   } else if (nlua_is_table_from_lua(arg)) {
     char_u *name = nlua_register_table_as_callable(arg);
 
@@ -7616,7 +7619,7 @@ char *save_tv_as_string(typval_T *tv, ptrdiff_t *const len, bool endnl)
 /// @param[out]  ret_fnum  Set to fnum for marks.
 ///
 /// @return Pointer to position or NULL in case of error (e.g. invalid type).
-pos_T *var2fpos(const typval_T *const tv, const int dollar_lnum,
+pos_T *var2fpos(const typval_T *const tv, const bool dollar_lnum,
                 int *const ret_fnum)
   FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
 {

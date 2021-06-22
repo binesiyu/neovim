@@ -725,7 +725,7 @@ static int makeopens(FILE *fd, char_u *dirnow)
       }
     }
 
-    if (tab_firstwin->w_next != NULL) {
+    if (tab_firstwin != NULL && tab_firstwin->w_next != NULL) {
       // Go to the first window.
       PUTLINE_FAIL("wincmd t");
 
@@ -835,7 +835,7 @@ static int makeopens(FILE *fd, char_u *dirnow)
               p_shm) < 0) {
     return FAIL;
   }
-  if (tab_firstwin->w_next != NULL) {
+  if (tab_firstwin != NULL && tab_firstwin->w_next != NULL) {
     // Restore 'winminheight' and 'winminwidth'.
     PUTLINE_FAIL("let &winminheight = s:save_winminheight");
     PUTLINE_FAIL("let &winminwidth = s:save_winminwidth");
@@ -937,11 +937,13 @@ void ex_mkrc(exarg_T *eap)
 
     if (!view_session || (eap->cmdidx == CMD_mksession
                           && (*flagp & SSOP_OPTIONS))) {
-      failed |= (makemap(fd, NULL) == FAIL
-                 || makeset(fd, OPT_GLOBAL, false) == FAIL);
-      if (p_hls && fprintf(fd, "%s", "set hlsearch\n") < 0) {
-        failed = true;
+      int flags = OPT_GLOBAL;
+
+      if (eap->cmdidx == CMD_mksession && (*flagp & SSOP_SKIP_RTP)) {
+        flags |= OPT_SKIPRTP;
       }
+      failed |= (makemap(fd, NULL) == FAIL
+                 || makeset(fd, flags, false) == FAIL);
     }
 
     if (!failed && view_session) {
@@ -1000,6 +1002,9 @@ void ex_mkrc(exarg_T *eap)
                   "%s",
                   "let &g:so = s:so_save | let &g:siso = s:siso_save\n")
           < 0) {
+        failed = true;
+      }
+      if (p_hls && fprintf(fd, "%s", "set hlsearch\n") < 0) {
         failed = true;
       }
       if (no_hlsearch && fprintf(fd, "%s", "nohlsearch\n") < 0) {
