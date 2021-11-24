@@ -209,7 +209,7 @@ func Test_set_completion()
 
   " Expand abbreviation of options.
   call feedkeys(":set ts\<C-A>\<C-B>\"\<CR>", 'tx')
-  call assert_equal('"set tabstop thesaurus', @:)
+  call assert_equal('"set tabstop thesaurus thesaurusfunc', @:)
 
   " Expand current value
   call feedkeys(":set fileencodings=\<C-A>\<C-B>\"\<CR>", 'tx')
@@ -539,7 +539,7 @@ func Test_copy_winopt()
   call assert_equal(4,&numberwidth)
   bw!
 
-  set hidden&
+  set nohidden
 endfunc
 
 func Test_shortmess_F()

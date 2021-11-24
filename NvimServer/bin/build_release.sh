@@ -22,7 +22,7 @@ build_runtime() {
 
 download_and_build_universal_nvimserver() {
   local -r working_dir=$1
-  local tag; tag=$(cat "./NvimServer/Resources/nvim-version-for-download.txt"); readonly tag
+  local tag; tag=$(cat "./NvimServer/Resources/nvimserver-for-download.txt"); readonly tag
 
   mkdir -p "${working_dir}"
   pushd "${working_dir}" >/dev/null
@@ -68,7 +68,7 @@ main() {
   pushd "$(dirname "${BASH_SOURCE[0]}")/../.." >/dev/null
 
     local -r nvim_build_dir_path="./build"
-    local nvim_install_path; nvim_install_path="$(mktemp -d -t 'nvim-runtime')"
+    local nvim_install_path; nvim_install_path="$(/usr/bin/mktemp -d -t 'nvim-runtime')"
     readonly nvim_install_path
     local -r nvimserver_folder="./NvimServer/build"
 

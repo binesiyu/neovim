@@ -4,8 +4,8 @@
 #   intro: https://codingnest.com/basic-cmake/
 #   best practices (3.0+): https://gist.github.com/mbinna/c61dbb39bca0e4fb7d1f73b0d66a4fd1
 
-# Version should match the tested CMAKE_URL in .travis.yml.
-cmake_minimum_required(VERSION 2.8.12)
+# Version should match the tested CMAKE_URL in .github/workflows/ci.yml.
+cmake_minimum_required(VERSION 3.10)
 project(nvim C)
 
 if(POLICY CMP0065)
@@ -138,9 +138,9 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY
 # If not in a git repo (e.g., a tarball) these tokens define the complete
 # version string, else they are combined with the result of `git describe`.
 set(NVIM_VERSION_MAJOR 0)
-set(NVIM_VERSION_MINOR 6)
-set(NVIM_VERSION_PATCH 0)
-set(NVIM_VERSION_PRERELEASE "-dev") # for package maintainers
+set(NVIM_VERSION_MINOR 5)
+set(NVIM_VERSION_PATCH 1)
+set(NVIM_VERSION_PRERELEASE "") # for package maintainers
 
 # API level
 set(NVIM_API_LEVEL 8)         # Bump this after any API change.
@@ -602,9 +602,7 @@ if(BUSTED_PRG)
   # console pool: to do so we need to use the USES_TERMINAL
   # option, but this is only available in CMake 3.2
   set(TEST_TARGET_ARGS)
-  if(NOT (${CMAKE_VERSION} VERSION_LESS 3.2.0))
-    list(APPEND TEST_TARGET_ARGS "USES_TERMINAL")
-  endif()
+  list(APPEND TEST_TARGET_ARGS "USES_TERMINAL")
 
   set(UNITTEST_PREREQS nvim-test unittest-headers)
   set(FUNCTIONALTEST_PREREQS nvim printenv-test printargs-test shell-test streams-test tty-test ${GENERATED_HELP_TAGS})
@@ -703,7 +701,7 @@ endif()
 
 if(LUACHECK_PRG)
   add_custom_target(lualint
-    COMMAND ${LUACHECK_PRG} -q runtime/ src/ test/ --exclude-files test/functional/fixtures/lua/syntax_error.lua
+    COMMAND ${LUACHECK_PRG} -q runtime/ scripts/ src/ test/
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 else()
   add_custom_target(lualint false

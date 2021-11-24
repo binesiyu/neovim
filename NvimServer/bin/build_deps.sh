@@ -1,7 +1,7 @@
 #!/bin/bash
 set -Eeuo pipefail
 
-readonly gettext_version="0.20.1"
+readonly gettext_version="0.21"
 declare target; target="$(uname -m)"; readonly target
 
 download_gettext() {
@@ -33,13 +33,14 @@ build_gettext() {
     make distclean || true
     ./configure \
         MACOSX_DEPLOYMENT_TARGET="${deployment_target}" \
+        --disable-shared \
         --disable-dependency-tracking \
         --disable-silent-rules \
         --disable-debug \
-        --with-included-gettext \
         --with-included-glib \
         --with-included-libcroco \
         --with-included-libunistring \
+        --with-included-libxml \
         --without-emacs \
         --disable-java \
         --disable-csharp \

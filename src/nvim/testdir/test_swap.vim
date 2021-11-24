@@ -168,7 +168,6 @@ func Test_swapname()
 endfunc
 
 func Test_swapfile_delete()
-  throw 'skipped: need the "blob" feature for this test'
   autocmd! SwapExists
   function s:swap_exists()
     let v:swapchoice = s:swap_choice
@@ -374,6 +373,10 @@ func Test_swap_symlink()
   call delete('Xtestfile')
   call delete('Xtestlink')
   call delete('Xswapdir', 'rf')
+endfunc
+
+func Test_no_swap_file()
+  call assert_equal("\nNo swap file", execute('swapname'))
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

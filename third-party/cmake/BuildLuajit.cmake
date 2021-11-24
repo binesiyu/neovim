@@ -1,5 +1,3 @@
-include(CMakeParseArguments)
-
 # BuildLuajit(TARGET targetname CONFIGURE_COMMAND ... BUILD_COMMAND ... INSTALL_COMMAND ...)
 # Reusable function to build luajit, wraps ExternalProject_Add.
 # Failing to pass a command argument will result in no command being run
@@ -55,7 +53,7 @@ else()
 endif()
 set(INSTALLCMD_UNIX ${MAKE_PRG} CFLAGS=-fPIC
                                 CFLAGS+=-DLUA_USE_APICHECK
-                                CFLAGS+=-DLUA_USE_ASSERT
+                                CFLAGS+=-funwind-tables
                                 ${NO_STACK_CHECK}
                                 ${AMD64_ABI}
                                 CCDEBUG+=-g
@@ -111,7 +109,7 @@ elseif(MINGW)
   BuildLuaJit(BUILD_COMMAND ${LUAJIT_MAKE_PRG} CC=${DEPS_C_COMPILER}
                                 PREFIX=${DEPS_INSTALL_DIR}
                                 CFLAGS+=-DLUA_USE_APICHECK
-                                CFLAGS+=-DLUA_USE_ASSERT
+                                CFLAGS+=-funwind-tables
                                 CCDEBUG+=-g
                                 BUILDMODE=static
                       # Build a DLL too
