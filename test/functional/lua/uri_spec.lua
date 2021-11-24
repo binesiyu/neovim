@@ -2,6 +2,7 @@ local helpers = require('test.functional.helpers')(after_each)
 local clear = helpers.clear
 local exec_lua = helpers.exec_lua
 local eq = helpers.eq
+local write_file = require('test.helpers').write_file
 
 describe('URI methods', function()
   before_each(function()
@@ -142,8 +143,8 @@ describe('URI methods', function()
       end)
 
       it('uri_to_fname returns non-file scheme URI without authority unchanged', function()
-        eq('zipfile:/path/to/archive.zip%3A%3Afilename.txt', exec_lua [[
-          return vim.uri_to_fname('zipfile:/path/to/archive.zip%3A%3Afilename.txt')
+        eq('zipfile:///path/to/archive.zip%3A%3Afilename.txt', exec_lua [[
+          return vim.uri_to_fname('zipfile:///path/to/archive.zip%3A%3Afilename.txt')
         ]])
       end)
     end)
@@ -158,6 +159,22 @@ describe('URI methods', function()
 
   end)
 
+  describe('uri from bufnr', function()
+    it('Windows paths should not be treated as uris', function()
+      if not helpers.iswin() then return end
+
+      local file = helpers.tmpname()
+      write_file(file, 'Test content')
+        local test_case = string.format([[
+          local file = '%s'
+          return vim.uri_from_bufnr(vim.fn.bufadd(file))
+        ]], file)
+        local expected_uri = 'file:///' .. file:gsub("\\", "/")
+        eq(expected_uri, exec_lua(test_case))
+        os.remove(file)
+    end)
+  end)
+
   describe('uri to bufnr', function()
     it('uri_to_bufnr & uri_from_bufnr returns original uri for non-file uris', function()
       local uri = 'jdt://contents/java.base/java.util/List.class?=sql/%5C/home%5C/user%5C/.jabba%5C/jdk%5C/openjdk%5C@1.14.0%5C/lib%5C/jrt-fs.jar%60java.base=/javadoc_location=/https:%5C/%5C/docs.oracle.com%5C/en%5C/java%5C/javase%5C/14%5C/docs%5C/api%5C/=/%3Cjava.util(List.class'
@@ -169,7 +186,7 @@ describe('URI methods', function()
     end)
 
     it('uri_to_bufnr & uri_from_bufnr returns original uri for non-file uris without authority', function()
-      local uri = 'zipfile:/path/to/archive.zip%3A%3Afilename.txt'
+      local uri = 'zipfile:///path/to/archive.zip%3A%3Afilename.txt'
       local test_case = string.format([[
         local uri = '%s'
         return vim.uri_from_bufnr(vim.uri_to_bufnr(uri))

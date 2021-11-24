@@ -264,7 +264,7 @@ _error_suppressions_2 = set()
 
 # The allowed line length of files.
 # This is set by --linelength flag.
-_line_length = 80
+_line_length = 100
 
 # The allowed extensions for file names
 # This is set by --extensions flag.
@@ -2544,6 +2544,7 @@ def CheckSpacing(filename, clean_lines, linenum, nesting_state, error):
                    r'(?<!\bPMap)'
                    r'(?<!\bArrayOf)'
                    r'(?<!\bDictionaryOf)'
+                   r'(?<!\bDict)'
                    r'\((?:const )?(?:struct )?[a-zA-Z_]\w*(?: *\*(?:const)?)*\)'
                    r' +'
                    r'-?(?:\*+|&)?(?:\w+|\+\+|--|\()', cast_line)

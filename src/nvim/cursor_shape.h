@@ -24,14 +24,14 @@ SHAPE_IDX_VDRAG  = 13,      ///< dragging a vertical separator line
 SHAPE_IDX_MORE   = 14,      ///< Hit-return or More
 SHAPE_IDX_MOREL  = 15,      ///< Hit-return or More in last line
 SHAPE_IDX_SM     = 16,      ///< showing matching paren
-SHAPE_IDX_TERM   = 17,  ///< when TERM_FOCUS
+SHAPE_IDX_TERM   = 17,      ///< when TERM_FOCUS
 SHAPE_IDX_COUNT  = 18
 } ModeShape;
 
 typedef enum {
-SHAPE_BLOCK     = 0,       ///< block cursor
-SHAPE_HOR       = 1,       ///< horizontal bar cursor
-SHAPE_VER       = 2        ///< vertical bar cursor
+  SHAPE_BLOCK     = 0,       ///< block cursor
+  SHAPE_HOR       = 1,       ///< horizontal bar cursor
+  SHAPE_VER       = 2,  ///< vertical bar cursor
 } CursorShape;
 
 #define MSHAPE_NUMBERED 1000    // offset for shapes identified by number

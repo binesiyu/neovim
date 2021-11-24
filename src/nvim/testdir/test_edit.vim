@@ -201,11 +201,11 @@ func Test_edit_07()
   endfu
   au InsertCharPre <buffer> :call DoIt()
   call feedkeys("A\<f5>\<c-p>u\<cr>\<c-l>\<cr>", 'tx')
-  call assert_equal(["Jan\<c-l>",''], getline(1,'$'))
+  call assert_equal(["Jan\<c-l>",''], 1->getline('$'))
   %d
   call setline(1, 'J')
   call feedkeys("A\<f5>\<c-p>u\<down>\<c-l>\<cr>", 'tx')
-  call assert_equal(["January"], getline(1,'$'))
+  call assert_equal(["January"], 1->getline('$'))
 
   delfu ListMonths
   delfu DoIt
@@ -348,7 +348,7 @@ func Test_edit_12()
   call cursor(2, 4)
   call feedkeys("R^\<c-d>", 'tnix')
   call assert_equal(["\tabc", "def"], getline(1, '$'))
-  call assert_equal([0, 2, 2, 0], getpos('.'))
+  call assert_equal([0, 2, 2, 0], '.'->getpos())
   %d
   call setline(1, ["\tabc", "\t\tdef"])
   call cursor(2, 2)
@@ -868,6 +868,56 @@ func Test_edit_CTRL_T()
   call assert_equal(['mad'], getline(1, '$'))
   call delete('Xthesaurus')
   bw!
+endfunc
+
+" Test 'thesaurusfunc'
+func MyThesaurus(findstart, base)
+  let mythesaurus = [
+        \ #{word: "happy",
+        \   synonyms: "cheerful,blissful,flying high,looking good,peppy"},
+        \ #{word: "kind",
+        \   synonyms: "amiable,bleeding-heart,heart in right place"}]
+  if a:findstart
+    " locate the start of the word
+    let line = getline('.')
+    let start = col('.') - 1
+    while start > 0 && line[start - 1] =~ '\a'
+      let start -= 1
+    endwhile
+    return start
+  else
+    " find strings matching with "a:base"
+    let res = []
+    for w in mythesaurus
+      if w.word =~ '^' . a:base
+        call add(res, w.word)
+        call extend(res, split(w.synonyms, ","))
+      endif
+    endfor
+    return res
+  endif
+endfunc
+
+func Test_thesaurus_func()
+  new
+  set thesaurus=notused
+  set thesaurusfunc=NotUsed
+  setlocal thesaurusfunc=MyThesaurus
+  call setline(1, "an ki")
+  call cursor(1, 1)
+  call feedkeys("A\<c-x>\<c-t>\<c-n>\<cr>\<esc>", 'tnix')
+  call assert_equal(['an amiable', ''], getline(1, '$'))
+
+  setlocal thesaurusfunc=NonExistingFunc
+  call assert_fails("normal $a\<C-X>\<C-T>", 'E117:')
+
+  setlocal thesaurusfunc=
+  set thesaurusfunc=NonExistingFunc
+  call assert_fails("normal $a\<C-X>\<C-T>", 'E117:')
+  %bw!
+
+  set thesaurusfunc=
+  set thesaurus=
 endfunc
 
 func Test_edit_CTRL_U()

@@ -118,7 +118,8 @@ Numbers can be decimal, hexadecimal, octal or binary.
 A hexadecimal number starts with "0x" or "0X".  For example "0x1f" is decimal
 31.
 
-An octal number starts with a zero and another digit.  "017" is decimal 15.
+An octal number starts with "0o", "0O" or a zero and another digit.  "0o17" is
+decimal 15.
 
 A binary number starts with "0b" or "0B".  For example "0b101" is decimal 5.
 
@@ -127,14 +128,14 @@ number, it will be interpreted as an octal number!
 
 The ":echo" command always prints decimal numbers.  Example: >
 
-	:echo 0x7f 036
+	:echo 0x7f 0o36
 <	127 30 ~
 
 A number is made negative with a minus sign.  This also works for hexadecimal,
 octal and binary numbers.  A minus sign is also used for subtraction.  Compare
 this with the previous example: >
 
-	:echo 0x7f -036
+	:echo 0x7f -0o36
 <	97 ~
 
 White space in an expression is ignored.  However, it's recommended to use it
@@ -142,7 +143,7 @@ for separating items, to make the expression easier to read.  For example, to
 avoid the confusion with a negative number above, put a space between the
 minus sign and the following number: >
 
-	:echo 0x7f - 036
+	:echo 0x7f - 0o36
 
 ==============================================================================
 *41.2*	Variables
@@ -743,6 +744,8 @@ Cursor and mark position:		*cursor-functions* *mark-functions*
 	diff_filler()		get the number of filler lines above a line
 	screenattr()		get attribute at a screen line/row
 	screenchar()		get character code at a screen line/row
+	screenchars()		get character codes at a screen line/row
+	screenstring()		get string of characters at a screen line/row
 
 Working with text in the current buffer:		*text-functions*
 	getline()		get a line or list of lines from the buffer
@@ -782,9 +785,10 @@ System functions and manipulation of files:
 	isdirectory()		check if a directory exists
 	getfsize()		get the size of a file
 	getcwd()		get the current working directory
-	haslocaldir()		check if current window used |:lcd|
+	haslocaldir()		check if current window used |:lcd| or |:tcd|
 	tempname()		get the name of a temporary file
 	mkdir()			create a new directory
+	chdir()			change current working directory
 	delete()		delete a file
 	rename()		rename a file
 	system()		get the result of a shell command as a string
@@ -1022,6 +1026,7 @@ Various:					*various-functions*
 	undotree()		return the state of the undo tree
 
 	getreg()		get contents of a register
+	getreginfo()		get information about a register
 	getregtype()		get type of a register
 	setreg()		set contents and type of a register
 	reg_executing()		return the name of the register being executed
@@ -1800,7 +1805,7 @@ First of all you must choose a name for your plugin.  The features provided
 by the plugin should be clear from its name.  And it should be unlikely that
 someone else writes a plugin with the same name but which does something
 different.  And please limit the name to 8 characters, to avoid problems on
-old Windows systems.
+old MS-Windows systems.
 
 A script that corrects typing mistakes could be called "typecorr.vim".  We
 will use it here as an example.

@@ -3,6 +3,8 @@
 source check.vim
 source view_util.vim
 
+source screendump.vim
+
 func s:screen_lines(start, end) abort
   return ScreenLines([a:start, a:end], 8)
 endfunc
@@ -265,6 +267,37 @@ func Test_relativenumber_uninitialised()
   bwipe!
 endfunc
 
+func Test_relativenumber_colors()
+  CheckScreendump
+
+  let lines =<< trim [CODE]
+    call setline(1, range(200))
+    111
+    set number relativenumber
+    hi LineNr ctermfg=red
+  [CODE]
+  call writefile(lines, 'XTest_relnr')
+
+  " Check that the balloon shows up after a mouse move
+  let buf = RunVimInTerminal('-S XTest_relnr', {'rows': 10, 'cols': 50})
+  call term_wait(buf, 100)
+  " Default colors
+  call VerifyScreenDump(buf, 'Test_relnr_colors_1', {})
+
+  call term_sendkeys(buf, ":hi LineNrAbove ctermfg=blue\<CR>")
+  call VerifyScreenDump(buf, 'Test_relnr_colors_2', {})
+
+  call term_sendkeys(buf, ":hi LineNrBelow ctermfg=green\<CR>")
+  call VerifyScreenDump(buf, 'Test_relnr_colors_3', {})
+
+  call term_sendkeys(buf, ":hi clear LineNrAbove\<CR>")
+  call VerifyScreenDump(buf, 'Test_relnr_colors_4', {})
+
+  " clean up
+  call StopVimInTerminal(buf)
+  call delete('XTest_relnr')
+endfunc
+
 " Test for displaying line numbers with 'rightleft'
 func Test_number_rightleft()
   CheckFeature rightleft
@@ -285,6 +318,17 @@ func Test_number_rightleft()
   redraw!
   call assert_match('^\s\+0001 1000$', Screenline(1))
   bw!
+endfunc
+
+" This used to cause a divide by zero
+func Test_number_no_text_virtual_edit()
+  vnew
+  call setline(1, ['line one', 'line two'])
+  set number virtualedit=all
+  normal w
+  4wincmd |
+  normal j
+  bwipe!
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

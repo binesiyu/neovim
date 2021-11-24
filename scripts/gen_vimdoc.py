@@ -89,10 +89,14 @@ CONFIG = {
         # Section ordering.
         'section_order': [
             'vim.c',
+            'vimscript.c',
             'buffer.c',
+            'extmark.c',
             'window.c',
+            'win_config.c',
             'tabpage.c',
             'ui.c',
+            'extmark.c',
         ],
         # List of files/directories for doxygen to read, separated by blanks
         'files': os.path.join(base_dir, 'src/nvim/api'),
@@ -123,11 +127,13 @@ CONFIG = {
             'vim.lua',
             'shared.lua',
             'uri.lua',
+            'ui.lua',
         ],
         'files': ' '.join([
             os.path.join(base_dir, 'src/nvim/lua/vim.lua'),
             os.path.join(base_dir, 'runtime/lua/vim/shared.lua'),
             os.path.join(base_dir, 'runtime/lua/vim/uri.lua'),
+            os.path.join(base_dir, 'runtime/lua/vim/ui.lua'),
         ]),
         'file_patterns': '*.lua',
         'fn_name_prefix': '',
@@ -141,6 +147,7 @@ CONFIG = {
             # `shared` functions are exposed on the `vim` module.
             'shared': 'vim',
             'uri': 'vim',
+            'ui': 'vim.ui',
         },
         'append_only': [
             'shared.lua',
@@ -155,10 +162,12 @@ CONFIG = {
             'buf.lua',
             'diagnostic.lua',
             'codelens.lua',
+            'tagfunc.lua',
             'handlers.lua',
             'util.lua',
             'log.lua',
             'rpc.lua',
+            'sync.lua',
             'protocol.lua',
         ],
         'files': ' '.join([
@@ -187,6 +196,23 @@ CONFIG = {
         'module_override': {},
         'append_only': [],
     },
+    'diagnostic': {
+        'mode': 'lua',
+        'filename': 'diagnostic.txt',
+        'section_start_token': '*diagnostic-api*',
+        'section_order': [
+            'diagnostic.lua',
+        ],
+        'files': os.path.join(base_dir, 'runtime/lua/vim/diagnostic.lua'),
+        'file_patterns': '*.lua',
+        'fn_name_prefix': '',
+        'section_name': {'diagnostic.lua': 'diagnostic'},
+        'section_fmt': lambda _: 'Lua module: vim.diagnostic',
+        'helptag_fmt': lambda _: '*diagnostic-api*',
+        'fn_helptag_fmt': lambda fstem, name: f'*vim.{fstem}.{name}()*',
+        'module_override': {},
+        'append_only': [],
+    },
     'treesitter': {
         'mode': 'lua',
         'filename': 'treesitter.txt',
@@ -197,7 +223,6 @@ CONFIG = {
             'query.lua',
             'highlighter.lua',
             'languagetree.lua',
-            'health.lua',
         ],
         'files': ' '.join([
             os.path.join(base_dir, 'runtime/lua/vim/treesitter.lua'),
@@ -486,6 +511,11 @@ def render_node(n, text, prefix='', indent='', width=62):
             text += indent + prefix + result
     elif n.nodeName in ('para', 'heading'):
         for c in n.childNodes:
+            if (is_inline(c)
+                    and '' != get_text(c).strip()
+                    and text
+                    and ' ' != text[-1]):
+                text += ' '
             text += render_node(c, text, indent=indent, width=width)
     elif n.nodeName == 'itemizedlist':
         for c in n.childNodes:
@@ -1131,7 +1161,7 @@ Doxyfile = textwrap.dedent('''
     INPUT_FILTER           = "{filter}"
     EXCLUDE                =
     EXCLUDE_SYMLINKS       = NO
-    EXCLUDE_PATTERNS       = */private/*
+    EXCLUDE_PATTERNS       = */private/* */health.lua */_*.lua
     EXCLUDE_SYMBOLS        =
     EXTENSION_MAPPING      = lua=C
     EXTRACT_PRIVATE        = NO

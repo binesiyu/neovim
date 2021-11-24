@@ -3,10 +3,9 @@
 
 // autocmd.c: Autocommand related functions
 
-#include "nvim/autocmd.h"
-
-#include "nvim/api/private/handle.h"
+#include "nvim/api/private/helpers.h"
 #include "nvim/ascii.h"
+#include "nvim/autocmd.h"
 #include "nvim/buffer.h"
 #include "nvim/charset.h"
 #include "nvim/cursor.h"
@@ -25,8 +24,8 @@
 #include "nvim/vim.h"
 
 #ifdef INCLUDE_GENERATED_DECLARATIONS
-#include "auevents_name_map.generated.h"
-#include "autocmd.c.generated.h"
+# include "auevents_name_map.generated.h"
+# include "autocmd.c.generated.h"
 #endif
 
 //
@@ -200,7 +199,7 @@ static void au_cleanup(void)
   }
 
   // Loop over all events.
-  for (event = (event_T)0; (int)event < (int)NUM_EVENTS;
+  for (event = (event_T)0; (int)event < NUM_EVENTS;
        event = (event_T)((int)event + 1)) {
     // Loop over all autocommand patterns.
     prev_ap = &(first_autopat[(int)event]);
@@ -267,7 +266,7 @@ void aubuflocal_remove(buf_T *buf)
   }
 
   // invalidate buflocals looping through events
-  for (event = (event_T)0; (int)event < (int)NUM_EVENTS;
+  for (event = (event_T)0; (int)event < NUM_EVENTS;
        event = (event_T)((int)event + 1)) {
     // loop over all autocommand patterns
     for (ap = first_autopat[(int)event]; ap != NULL; ap = ap->next) {
@@ -314,20 +313,19 @@ static void au_del_group(char_u *name)
 {
   int i = au_find_group(name);
   if (i == AUGROUP_ERROR) {  // the group doesn't exist
-    EMSG2(_("E367: No such group: \"%s\""), name);
+    semsg(_("E367: No such group: \"%s\""), name);
   } else if (i == current_augroup) {
-    EMSG(_("E936: Cannot delete the current group"));
+    emsg(_("E936: Cannot delete the current group"));
   } else {
     event_T event;
     AutoPat *ap;
     int in_use = false;
 
-    for (event = (event_T)0; (int)event < (int)NUM_EVENTS;
+    for (event = (event_T)0; (int)event < NUM_EVENTS;
          event = (event_T)((int)event + 1)) {
       for (ap = first_autopat[(int)event]; ap != NULL; ap = ap->next) {
         if (ap->group == i && ap->pat != NULL) {
-          give_warning(
-              (char_u *)_("W19: Deleting augroup that is still in use"), true);
+          give_warning((char_u *)_("W19: Deleting augroup that is still in use"), true);
           in_use = true;
           event = NUM_EVENTS;
           break;
@@ -374,7 +372,7 @@ void do_augroup(char_u *arg, int del_group)
 {
   if (del_group) {
     if (*arg == NUL) {
-      EMSG(_(e_argreq));
+      emsg(_(e_argreq));
     } else {
       au_del_group(arg);
     }
@@ -471,17 +469,17 @@ static char_u *find_end_event(char_u *arg, int have_group)
 
   if (*arg == '*') {
     if (arg[1] && !ascii_iswhite(arg[1])) {
-      EMSG2(_("E215: Illegal character after *: %s"), arg);
+      semsg(_("E215: Illegal character after *: %s"), arg);
       return NULL;
     }
     pat = arg + 1;
   } else {
     for (pat = arg; *pat && *pat != '|' && !ascii_iswhite(*pat); pat = p) {
-      if ((int)event_name2nr(pat, &p) >= (int)NUM_EVENTS) {
+      if ((int)event_name2nr(pat, &p) >= NUM_EVENTS) {
         if (have_group) {
-          EMSG2(_("E216: No such event: %s"), pat);
+          semsg(_("E216: No such event: %s"), pat);
         } else {
-          EMSG2(_("E216: No such group or event: %s"), pat);
+          semsg(_("E216: No such group or event: %s"), pat);
         }
         return NULL;
       }
@@ -653,7 +651,7 @@ void do_autocmd(char_u *arg_in, int forceit)
         // Check for "++once" flag.
         if (STRNCMP(cmd, "++once", 6) == 0 && ascii_iswhite(cmd[6])) {
           if (once) {
-            EMSG2(_(e_duparg2), "++once");
+            semsg(_(e_duparg2), "++once");
           }
           once = true;
           cmd = skipwhite(cmd + 6);
@@ -662,7 +660,7 @@ void do_autocmd(char_u *arg_in, int forceit)
         // Check for "++nested" flag.
         if ((STRNCMP(cmd, "++nested", 8) == 0 && ascii_iswhite(cmd[8]))) {
           if (nested) {
-            EMSG2(_(e_duparg2), "++nested");
+            semsg(_(e_duparg2), "++nested");
           }
           nested = true;
           cmd = skipwhite(cmd + 8);
@@ -671,7 +669,7 @@ void do_autocmd(char_u *arg_in, int forceit)
         // Check for the old (deprecated) "nested" flag.
         if (STRNCMP(cmd, "nested", 6) == 0 && ascii_iswhite(cmd[6])) {
           if (nested) {
-            EMSG2(_(e_duparg2), "nested");
+            semsg(_(e_duparg2), "nested");
           }
           nested = true;
           cmd = skipwhite(cmd + 6);
@@ -693,7 +691,7 @@ void do_autocmd(char_u *arg_in, int forceit)
   // Print header when showing autocommands.
   if (!forceit && *cmd == NUL) {
     // Highlight title
-    MSG_PUTS_TITLE(_("\n--- Autocommands ---"));
+    msg_puts_title(_("\n--- Autocommands ---"));
   }
 
   // Loop over the events.
@@ -701,9 +699,9 @@ void do_autocmd(char_u *arg_in, int forceit)
   last_group = AUGROUP_ERROR;  // for listing the group name
   if (*arg == '*' || *arg == NUL || *arg == '|') {
     if (!forceit && *cmd != NUL) {
-      EMSG(_(e_cannot_define_autocommands_for_all_events));
+      emsg(_(e_cannot_define_autocommands_for_all_events));
     } else {
-      for (event_T event = (event_T)0; event < (int)NUM_EVENTS;
+      for (event_T event = (event_T)0; event < NUM_EVENTS;
            event = (event_T)(event + 1)) {
         if (do_autocmd_event(event, pat, once, nested, cmd, forceit, group)
             == FAIL) {
@@ -761,13 +759,8 @@ static int au_get_grouparg(char_u **argp)
 // If *cmd == NUL: show entries.
 // If forceit == true: delete entries.
 // If group is not AUGROUP_ALL: only use this group.
-static int do_autocmd_event(event_T event,
-                            char_u *pat,
-                            bool once,
-                            int nested,
-                            char_u *cmd,
-                            int forceit,
-                            int group)
+static int do_autocmd_event(event_T event, char_u *pat, bool once, int nested, char_u *cmd,
+                            int forceit, int group)
 {
   AutoPat *ap;
   AutoPat **prev_ap;
@@ -847,11 +840,10 @@ static int do_autocmd_event(event_T event,
 
     if (is_buflocal) {
       // normalize pat into standard "<buffer>#N" form
-      snprintf(
-          (char *)buflocal_pat,
-          BUFLOCAL_PAT_LEN,
-          "<buffer=%d>",
-          buflocal_nr);
+      snprintf((char *)buflocal_pat,
+               BUFLOCAL_PAT_LEN,
+               "<buffer=%d>",
+               buflocal_nr);
 
       pat = buflocal_pat;                  // can modify pat and patlen
       patlen = (int)STRLEN(buflocal_pat);  //   but not endpat
@@ -889,7 +881,6 @@ static int do_autocmd_event(event_T event,
           } else if (*cmd == NUL) {
             // Show autocmd's for this autopat, or buflocals <buffer=X>
             show_autocmd(ap, event);
-
           } else if (ap->next == NULL) {
             // Add autocmd to this autopat, if it's the last one.
             break;
@@ -908,7 +899,7 @@ static int do_autocmd_event(event_T event,
         // refuse to add buffer-local ap if buffer number is invalid
         if (is_buflocal
             && (buflocal_nr == 0 || buflist_findnr(buflocal_nr) == NULL)) {
-          emsgf(_("E680: <buffer=%d>: invalid buffer number "), buflocal_nr);
+          semsg(_("E680: <buffer=%d>: invalid buffer number "), buflocal_nr);
           return FAIL;
         }
 
@@ -965,11 +956,11 @@ static int do_autocmd_event(event_T event,
   return OK;
 }
 
-// Implementation of ":doautocmd [group] event [fname]".
-// Return OK for success, FAIL for failure;
-int do_doautocmd(char_u *arg,
-                 bool do_msg,  // give message for no matching autocmds?
-                 bool *did_something)
+/// Implementation of ":doautocmd [group] event [fname]".
+/// Return OK for success, FAIL for failure;
+///
+/// @param do_msg  give message for no matching autocmds?
+int do_doautocmd(char_u *arg, bool do_msg, bool *did_something)
 {
   char_u *fname;
   int nothing_done = true;
@@ -983,7 +974,7 @@ int do_doautocmd(char_u *arg,
   group = au_get_grouparg(&arg);
 
   if (*arg == '*') {
-    EMSG(_("E217: Can't execute autocommands for ALL events"));
+    emsg(_("E217: Can't execute autocommands for ALL events"));
     return FAIL;
   }
 
@@ -1005,7 +996,7 @@ int do_doautocmd(char_u *arg,
   }
 
   if (nothing_done && do_msg) {
-    MSG(_("No matching autocommands"));
+    msg(_("No matching autocommands"));
   }
   if (did_something != NULL) {
     *did_something = !nothing_done;
@@ -1150,7 +1141,7 @@ void aucmd_prepbuf(aco_save_T *aco, buf_T *buf)
     block_autocmds();  // We don't want BufEnter/WinEnter autocommands.
     if (need_append) {
       win_append(lastwin, aucmd_win);
-      handle_register_window(aucmd_win);
+      pmap_put(handle_T)(&window_handles, aucmd_win->handle, aucmd_win);
       win_config_float(aucmd_win, aucmd_win->w_float_config);
     }
     // Prevent chdir() call in win_enter_ext(), through do_autochdir()
@@ -1188,10 +1179,10 @@ void aucmd_restbuf(aco_save_T *aco)
         }
       }
     }
-  win_found:
+win_found:
 
     win_remove(curwin, NULL);
-    handle_unregister_window(curwin);
+    pmap_del(handle_T)(&window_handles, curwin->handle);
     if (curwin->w_grid_alloc.chars != NULL) {
       ui_comp_remove_grid(&curwin->w_grid_alloc);
       ui_call_win_hide(curwin->w_grid_alloc.handle);
@@ -1268,11 +1259,7 @@ void aucmd_restbuf(aco_save_T *aco)
 /// @param buf Buffer for <abuf>
 ///
 /// @return true if some commands were executed.
-bool apply_autocmds(event_T event,
-                    char_u *fname,
-                    char_u *fname_io,
-                    bool force,
-                    buf_T *buf)
+bool apply_autocmds(event_T event, char_u *fname, char_u *fname_io, bool force, buf_T *buf)
 {
   return apply_autocmds_group(event, fname, fname_io, force, AUGROUP_ALL, buf,
                               NULL);
@@ -1289,11 +1276,7 @@ bool apply_autocmds(event_T event,
 /// @param exarg Ex command arguments
 ///
 /// @return true if some commands were executed.
-bool apply_autocmds_exarg(event_T event,
-                          char_u *fname,
-                          char_u *fname_io,
-                          bool force,
-                          buf_T *buf,
+bool apply_autocmds_exarg(event_T event, char_u *fname, char_u *fname_io, bool force, buf_T *buf,
                           exarg_T *eap)
 {
   return apply_autocmds_group(event, fname, fname_io, force, AUGROUP_ALL, buf,
@@ -1313,11 +1296,7 @@ bool apply_autocmds_exarg(event_T event,
 /// @param[in,out] retval caller's retval
 ///
 /// @return true if some autocommands were executed
-bool apply_autocmds_retval(event_T event,
-                           char_u *fname,
-                           char_u *fname_io,
-                           bool force,
-                           buf_T *buf,
+bool apply_autocmds_retval(event_T event, char_u *fname, char_u *fname_io, bool force, buf_T *buf,
                            int *retval)
 {
   if (should_abort(*retval)) {
@@ -1360,8 +1339,7 @@ bool has_event(event_T event) FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
 /// the current mode.
 bool has_cursorhold(void) FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
 {
-  return has_event(
-      (get_real_state() == NORMAL_BUSY ? EVENT_CURSORHOLD : EVENT_CURSORHOLDI));
+  return has_event((get_real_state() == NORMAL_BUSY ? EVENT_CURSORHOLD : EVENT_CURSORHOLDI));
   // return first_autopat[] != NULL;
 }
 
@@ -1392,13 +1370,8 @@ bool trigger_cursorhold(void) FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT
 /// @param eap Ex command arguments
 ///
 /// @return true if some commands were executed.
-static bool apply_autocmds_group(event_T event,
-                                 char_u *fname,
-                                 char_u *fname_io,
-                                 bool force,
-                                 int group,
-                                 buf_T *buf,
-                                 exarg_T *eap)
+static bool apply_autocmds_group(event_T event, char_u *fname, char_u *fname_io, bool force,
+                                 int group, buf_T *buf, exarg_T *eap)
 {
   char_u *sfname = NULL;  // short file name
   char_u *tail;
@@ -1461,7 +1434,7 @@ static bool apply_autocmds_group(event_T event,
   // Allow nesting of autocommands, but restrict the depth, because it's
   // possible to create an endless loop.
   if (nesting == 10) {
-    EMSG(_("E218: autocommand nesting too deep"));
+    emsg(_("E218: autocommand nesting too deep"));
     goto BYPASS_AU;
   }
 
@@ -1744,7 +1717,7 @@ BYPASS_AU:
 void block_autocmds(void)
 {
   // Remember the value of v:termresponse.
-  if (is_autocmd_blocked()) {
+  if (!is_autocmd_blocked()) {
     old_termresponse = get_vim_var_str(VV_TERMRESPONSE);
   }
   autocmd_blocked++;
@@ -1757,7 +1730,7 @@ void unblock_autocmds(void)
   // When v:termresponse was set while autocommands were blocked, trigger
   // the autocommands now.  Esp. useful when executing a shell command
   // during startup (nvim -d).
-  if (is_autocmd_blocked()
+  if (!is_autocmd_blocked()
       && get_vim_var_str(VV_TERMRESPONSE) != old_termresponse) {
     apply_autocmds(EVENT_TERMRESPONSE, NULL, NULL, false, curbuf);
   }
@@ -1789,19 +1762,18 @@ void auto_next_pat(AutoPatCmd *apc, int stop_at_last)
         && (apc->group == AUGROUP_ALL || apc->group == ap->group)) {
       // execution-condition
       if (ap->buflocal_nr == 0
-          ? match_file_pat(
-              NULL,
-              &ap->reg_prog,
-              apc->fname,
-              apc->sfname,
-              apc->tail,
-              ap->allow_dirs)
+          ? match_file_pat(NULL,
+                           &ap->reg_prog,
+                           apc->fname,
+                           apc->sfname,
+                           apc->tail,
+                           ap->allow_dirs)
           : ap->buflocal_nr == apc->arg_bufnr) {
         const char *const name = event_nr2name(apc->event);
         s = _("%s Autocommands for \"%s\"");
 
         const size_t sourcing_name_len
-            = (STRLEN(s) + strlen(name) + (size_t)ap->patlen + 1);
+          = (STRLEN(s) + strlen(name) + (size_t)ap->patlen + 1);
 
         sourcing_name = xmalloc(sourcing_name_len);
         snprintf((char *)sourcing_name, sourcing_name_len, s, name,
@@ -1905,9 +1877,7 @@ char_u *getnextac(int c, void *cookie, int indent, bool do_concat)
 /// @param event event that occurred.
 /// @param sfname filename the event occurred in.
 /// @param buf buffer the file is open in
-bool has_autocmd(event_T event,
-                 char_u *sfname,
-                 buf_T *buf) FUNC_ATTR_WARN_UNUSED_RESULT
+bool has_autocmd(event_T event, char_u *sfname, buf_T *buf) FUNC_ATTR_WARN_UNUSED_RESULT
 {
   AutoPat *ap;
   char_u *fname;
@@ -1930,13 +1900,12 @@ bool has_autocmd(event_T event,
   for (ap = first_autopat[(int)event]; ap != NULL; ap = ap->next) {
     if (ap->pat != NULL && ap->cmds != NULL
         && (ap->buflocal_nr == 0
-            ? match_file_pat(
-                NULL,
-                &ap->reg_prog,
-                fname,
-                sfname,
-                tail,
-                ap->allow_dirs)
+            ? match_file_pat(NULL,
+                             &ap->reg_prog,
+                             fname,
+                             sfname,
+                             tail,
+                             ap->allow_dirs)
             : buf != NULL && ap->buflocal_nr == buf->b_fnum)) {
       retval = true;
       break;
@@ -1968,11 +1937,8 @@ char_u *get_augroup_name(expand_T *xp, int idx)
   return (char_u *)AUGROUP_NAME(idx);
 }
 
-char_u *set_context_in_autocmd(
-    expand_T *xp,
-    char_u *arg,
-    int doautocmd  // true for :doauto*, false for :autocmd
-)
+/// @param doautocmd  true for :doauto*, false for :autocmd
+char_u *set_context_in_autocmd(expand_T *xp, char_u *arg, int doautocmd)
 {
   char_u *p;
   int group;

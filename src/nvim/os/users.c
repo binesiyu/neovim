@@ -6,11 +6,10 @@
 #include <uv.h>
 
 #include "auto/config.h"
-
 #include "nvim/ascii.h"
-#include "nvim/os/os.h"
 #include "nvim/garray.h"
 #include "nvim/memory.h"
+#include "nvim/os/os.h"
 #include "nvim/strings.h"
 #ifdef HAVE_PWD_H
 # include <pwd.h>
@@ -44,7 +43,7 @@ int os_get_usernames(garray_T *users)
   }
   ga_init(users, sizeof(char *), 20);
 
-# if defined(HAVE_GETPWENT) && defined(HAVE_PWD_H)
+#if defined(HAVE_GETPWENT) && defined(HAVE_PWD_H)
   {
     struct passwd *pw;
 
@@ -54,7 +53,7 @@ int os_get_usernames(garray_T *users)
     }
     endpwent();
   }
-# elif defined(WIN32)
+#elif defined(WIN32)
   {
     DWORD nusers = 0, ntotal = 0, i;
     PUSER_INFO_0 uinfo;
@@ -65,7 +64,7 @@ int os_get_usernames(garray_T *users)
         char *user;
         int conversion_result = utf16_to_utf8(uinfo[i].usri0_name, -1, &user);
         if (conversion_result != 0) {
-          EMSG2("utf16_to_utf8 failed: %d", conversion_result);
+          semsg("utf16_to_utf8 failed: %d", conversion_result);
           break;
         }
         add_user(users, user, false);
@@ -74,8 +73,8 @@ int os_get_usernames(garray_T *users)
       NetApiBufferFree(uinfo);
     }
   }
-# endif
-# if defined(HAVE_GETPWNAM)
+#endif
+#if defined(HAVE_GETPWNAM)
   {
     const char *user_env = os_getenv("USER");
 
@@ -105,7 +104,7 @@ int os_get_usernames(garray_T *users)
       }
     }
   }
-# endif
+#endif
 
   return OK;
 }
