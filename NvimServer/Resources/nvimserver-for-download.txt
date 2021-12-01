@@ -1,2 +1,2 @@
-nvimserver-0.5.1
+nvimserver-0.6.0-0
 
