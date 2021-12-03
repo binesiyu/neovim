@@ -386,7 +386,7 @@ local function get_diagnostics(bufnr, opts, clamp)
     if not opts.lnum or d.lnum == opts.lnum then
       if clamp and vim.api.nvim_buf_is_loaded(b) then
         local line_count = buf_line_count[b] - 1
-        if (d.lnum > line_count or d.end_lnum > line_count) then
+        if (d.lnum > line_count or d.end_lnum > line_count or d.lnum < 0 or d.end_lnum < 0) then
           d = vim.deepcopy(d)
           d.lnum = math.max(math.min(d.lnum, line_count), 0)
           d.end_lnum = math.max(math.min(d.end_lnum, line_count), 0)
@@ -653,9 +653,11 @@ function M.set(namespace, bufnr, diagnostics, opts)
     M.show(namespace, bufnr, nil, opts)
   end
 
-  vim.api.nvim_command(
-    string.format("doautocmd <nomodeline> DiagnosticChanged %s", vim.api.nvim_buf_get_name(bufnr))
-  )
+  vim.api.nvim_buf_call(bufnr, function()
+    vim.api.nvim_command(
+      string.format("doautocmd <nomodeline> DiagnosticChanged %s", vim.api.nvim_buf_get_name(bufnr))
+    )
+  end)
 end
 
 --- Get namespace metadata.
