@@ -119,7 +119,7 @@ au BufNewFile,BufRead *.aml			setf aml
 " APT config file
 au BufNewFile,BufRead apt.conf		       setf aptconf
 au BufNewFile,BufRead */.aptitude/config       setf aptconf
-au BufNewFile,BufRead */etc/apt/apt.conf.d/{[-_[:alnum:]]\+,[-_.[:alnum:]]\+.conf} setf aptconf
+" more generic pattern far down
 
 " Arch Inventory file
 au BufNewFile,BufRead .arch-inventory,=tagging-method	setf arch
@@ -484,7 +484,7 @@ au BufNewFile,BufRead *.desktop,*.directory	setf desktop
 au BufNewFile,BufRead dict.conf,.dictrc		setf dictconf
 
 " Dictd config
-au BufNewFile,BufRead dictd.conf		setf dictdconf
+au BufNewFile,BufRead dictd*.conf		setf dictdconf
 
 " Diff files
 au BufNewFile,BufRead *.diff,*.rej		setf diff
@@ -628,7 +628,7 @@ au BufNewFile,BufRead auto.master		setf conf
 au BufNewFile,BufRead *.mas,*.master		setf master
 
 " Forth
-au BufNewFile,BufRead *.fs,*.ft,*.fth		setf forth
+au BufNewFile,BufRead *.ft,*.fth		setf forth
 
 " Reva Forth
 au BufNewFile,BufRead *.frt			setf reva
@@ -644,6 +644,12 @@ au BufNewFile,BufRead *.fsl			setf framescript
 
 " FStab
 au BufNewFile,BufRead fstab,mtab		setf fstab
+
+" F# or Forth
+au BufNewFile,BufRead *.fs			call dist#ft#FTfs()
+
+" F#
+au BufNewFile,BufRead *.fsi,*.fsx		setf fsharp
 
 " GDB command files
 au BufNewFile,BufRead .gdbinit,gdbinit		setf gdb
@@ -1094,6 +1100,9 @@ au BufNewFile,BufRead *.moo			setf moo
 
 " Modconf
 au BufNewFile,BufRead */etc/modules.conf,*/etc/modules,*/etc/conf.modules setf modconf
+
+" MPD is based on XML
+au BufNewFile,BufRead *.mpd			setf xml
 
 " Mplayer config
 au BufNewFile,BufRead mplayer.conf,*/.mplayer/config	setf mplayerconf
@@ -2055,8 +2064,14 @@ au BufNewFile,BufRead *.xml			call dist#ft#FTxml()
 " XMI (holding UML models) is also XML
 au BufNewFile,BufRead *.xmi			setf xml
 
-" CSPROJ files are Visual Studio.NET's XML-based project config files
+" CSPROJ files are Visual Studio.NET's XML-based C# project config files
 au BufNewFile,BufRead *.csproj,*.csproj.user	setf xml
+
+" FSPROJ files are Visual Studio.NET's XML-based F# project config files
+au BufNewFile,BufRead *.fsproj,*.fsproj.user	setf xml
+
+" VBPROJ files are Visual Studio.NET's XML-based Visual Basic project config files
+au BufNewFile,BufRead *.vbproj,*.vbproj.user	setf xml
 
 " Qt Linguist translation source and Qt User Interface Files are XML
 " However, for .ts Typescript is more common.
@@ -2143,6 +2158,12 @@ au BufNewFile,BufRead *
 au StdinReadPost * if !did_filetype() | runtime! scripts.vim | endif
 
 
+" Plain text files, needs to be far down to not override others.  This avoids
+" the "conf" type being used if there is a line starting with '#'.
+" But before patterns matching everything in a directory.
+au BufNewFile,BufRead *.text,README,LICENSE,COPYING,AUTHORS	setf text
+
+
 " Extra checks for when no filetype has been detected now.  Mostly used for
 " patterns that end in "*".  E.g., "zsh*" matches "zsh.vim", but that's a Vim
 " script file.
@@ -2155,7 +2176,10 @@ au BufNewFile,BufRead proftpd.conf*					call s:StarSetf('apachestyle')
 
 " More Apache config files
 au BufNewFile,BufRead access.conf*,apache.conf*,apache2.conf*,httpd.conf*,srm.conf*	call s:StarSetf('apache')
-au BufNewFile,BufRead */etc/apache2/*.conf*,*/etc/apache2/conf.*/*,*/etc/apache2/mods-*/*,*/etc/apache2/sites-*/*,*/etc/httpd/conf.d/*.conf*		call s:StarSetf('apache')
+au BufNewFile,BufRead */etc/apache2/*.conf*,*/etc/apache2/conf.*/*,*/etc/apache2/mods-*/*,*/etc/apache2/sites-*/*,*/etc/httpd/conf.*/*,*/etc/httpd/mods-*/*,*/etc/httpd/sites-*/*,*/etc/httpd/conf.d/*.conf*		call s:StarSetf('apache')
+
+" APT config file
+au BufNewFile,BufRead */etc/apt/apt.conf.d/{[-_[:alnum:]]\+,[-_.[:alnum:]]\+.conf} call s:StarSetf('aptconf')
 
 " Asterisk config file
 au BufNewFile,BufRead *asterisk/*.conf*		call s:StarSetf('asterisk')
@@ -2349,10 +2373,6 @@ au BufNewFile,BufRead */etc/yum.repos.d/*	call s:StarSetf('dosini')
 au BufNewFile,BufRead .zsh*,.zlog*,.zcompdump*  call s:StarSetf('zsh')
 au BufNewFile,BufRead zsh*,zlog*		call s:StarSetf('zsh')
 
-
-" Plain text files, needs to be far down to not override others.  This avoids
-" the "conf" type being used if there is a line starting with '#'.
-au BufNewFile,BufRead *.text,README setf text
 
 " Help files match *.txt but should have a last line that is a modeline. 
 au BufNewFile,BufRead *.txt

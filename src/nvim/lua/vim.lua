@@ -323,6 +323,7 @@ end
 do
   local validate = vim.validate
 
+  --@private
   local function make_dict_accessor(scope, handle)
     validate {
       scope = {scope, 's'};
@@ -422,11 +423,10 @@ end
 ---
 --- Without a runtime, writes to :Messages
 ---@see :help nvim_notify
----@param msg Content of the notification to show to the user
----@param log_level Optional log level
----@param opts Dictionary with optional options (timeout, etc)
-function vim.notify(msg, log_level, _opts)
-
+---@param msg string Content of the notification to show to the user
+---@param log_level number|nil enum from vim.log.levels
+---@param opts table|nil additional options (timeout, etc)
+function vim.notify(msg, log_level, opts) -- luacheck: no unused
   if log_level == vim.log.levels.ERROR then
     vim.api.nvim_err_writeln(msg)
   elseif log_level == vim.log.levels.WARN then
@@ -454,7 +454,7 @@ local on_key_cbs = {}
 ---                   On each key press, Nvim passes the key char to fn(). |i_CTRL-V|
 ---                   If {fn} is nil, it removes the callback for the associated {ns_id}
 ---@param ns_id number? Namespace ID. If nil or 0, generates and returns a new
----                    |nvim_create_namesapce()| id.
+---                    |nvim_create_namespace()| id.
 ---
 ---@return number Namespace id associated with {fn}. Or count of all callbacks
 ---if on_key() is called without arguments.
@@ -580,6 +580,7 @@ function vim._expand_pat(pat, env)
   end
 
   local keys = {}
+  ---@private
   local function insert_keys(obj)
     for k,_ in pairs(obj) do
       if type(k) == "string" and string.sub(k,1,string.len(match_part)) == match_part then

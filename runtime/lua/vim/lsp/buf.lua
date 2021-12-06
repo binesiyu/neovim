@@ -165,7 +165,7 @@ end
 --- saved. {timeout_ms} is passed on to |vim.lsp.buf_request_sync()|. Example:
 ---
 --- <pre>
---- vim.api.nvim_command[[autocmd BufWritePre <buffer> lua vim.lsp.buf.formatting_sync()]]
+--- autocmd BufWritePre <buffer> lua vim.lsp.buf.formatting_sync()
 --- </pre>
 ---
 ---@param options Table with valid `FormattingOptions` entries
@@ -176,9 +176,10 @@ function M.formatting_sync(options, timeout_ms)
   if client == nil then return end
 
   local params = util.make_formatting_params(options)
-  local result, err = client.request_sync("textDocument/formatting", params, timeout_ms, vim.api.nvim_get_current_buf())
+  local bufnr = vim.api.nvim_get_current_buf()
+  local result, err = client.request_sync("textDocument/formatting", params, timeout_ms, bufnr)
   if result and result.result then
-    util.apply_text_edits(result.result)
+    util.apply_text_edits(result.result, bufnr)
   elseif err then
     vim.notify("vim.lsp.buf.formatting_sync: " .. err, vim.log.levels.WARN)
   end
@@ -202,6 +203,7 @@ end
 ---the remaining clients in the order as they occur in the `order` list.
 function M.formatting_seq_sync(options, timeout_ms, order)
   local clients = vim.tbl_values(vim.lsp.buf_get_clients());
+  local bufnr = vim.api.nvim_get_current_buf()
 
   -- sort the clients according to `order`
   for _, client_name in pairs(order or {}) do
@@ -220,7 +222,7 @@ function M.formatting_seq_sync(options, timeout_ms, order)
       local params = util.make_formatting_params(options)
       local result, err = client.request_sync("textDocument/formatting", params, timeout_ms, vim.api.nvim_get_current_buf())
       if result and result.result then
-        util.apply_text_edits(result.result)
+        util.apply_text_edits(result.result, bufnr)
       elseif err then
         vim.notify(string.format("vim.lsp.buf.formatting_seq_sync: (%s) %s", client.name, err), vim.log.levels.WARN)
       end
@@ -261,6 +263,7 @@ function M.rename(new_name)
     request('textDocument/rename', params)
   end
 
+  ---@private
   local function prepare_rename(err, result)
     if err == nil and result == nil then
       vim.notify('nothing to rename', vim.log.levels.INFO)
@@ -444,9 +447,9 @@ end
 --- by events such as `CursorHold`, eg:
 ---
 --- <pre>
---- vim.api.nvim_command [[autocmd CursorHold  <buffer> lua vim.lsp.buf.document_highlight()]]
---- vim.api.nvim_command [[autocmd CursorHoldI <buffer> lua vim.lsp.buf.document_highlight()]]
---- vim.api.nvim_command [[autocmd CursorMoved <buffer> lua vim.lsp.buf.clear_references()]]
+--- autocmd CursorHold  <buffer> lua vim.lsp.buf.document_highlight()
+--- autocmd CursorHoldI <buffer> lua vim.lsp.buf.document_highlight()
+--- autocmd CursorMoved <buffer> lua vim.lsp.buf.clear_references()
 --- </pre>
 ---
 --- Note: Usage of |vim.lsp.buf.document_highlight()| requires the following highlight groups

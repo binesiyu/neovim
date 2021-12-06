@@ -385,6 +385,7 @@ static void insert_enter(InsertState *s)
     State = INSERT;
   }
 
+  trigger_modechanged();
   stop_insert_mode = false;
 
   // Need to recompute the cursor position, it might move when the cursor is
@@ -2050,6 +2051,8 @@ static void ins_ctrl_x(void)
     // CTRL-V look like CTRL-N
     ctrl_x_mode = CTRL_X_CMDLINE_CTRL_X;
   }
+
+  trigger_modechanged();
 }
 
 // Whether other than default completion has been selected.
@@ -2662,6 +2665,7 @@ void set_completion(colnr_T startcol, list_T *list)
     show_pum(save_w_wrow, save_w_leftcol);
   }
 
+  trigger_modechanged();
   ui_flush();
 }
 
@@ -2717,12 +2721,13 @@ static bool pum_enough_matches(void)
 static void trigger_complete_changed_event(int cur)
 {
   static bool recursive = false;
+  save_v_event_T save_v_event;
 
   if (recursive) {
     return;
   }
 
-  dict_T *v_event = get_vim_var_dict(VV_EVENT);
+  dict_T *v_event = get_v_event(&save_v_event);
   if (cur < 0) {
     tv_dict_add_dict(v_event, S_LEN("completed_item"), tv_dict_alloc());
   } else {
@@ -2738,7 +2743,7 @@ static void trigger_complete_changed_event(int cur)
   textlock--;
   recursive = false;
 
-  tv_dict_clear(v_event);
+  restore_v_event(v_event, &save_v_event);
 }
 
 /// Show the popup menu for the list of matches.
@@ -3840,6 +3845,8 @@ static bool ins_compl_prep(int c)
     ins_apply_autocmds(EVENT_COMPLETEDONE);
   }
 
+  trigger_modechanged();
+
   /* reset continue_* if we left expansion-mode, if we stay they'll be
    * (re)set properly in ins_complete() */
   if (!vim_is_ctrl_x_key(c)) {
@@ -4588,6 +4595,8 @@ static int ins_compl_get_exp(pos_T *ini)
       compl_curr_match = compl_old_match;
     }
   }
+  trigger_modechanged();
+
   return i;
 }
 
@@ -7967,6 +7976,7 @@ static bool ins_esc(long *count, int cmdchar, bool nomove)
 
 
   State = NORMAL;
+  trigger_modechanged();
   // need to position cursor again (e.g. when on a TAB )
   changed_cline_bef_curs();
 
@@ -8068,6 +8078,7 @@ static void ins_insert(int replaceState)
   } else {
     State = replaceState | (State & LANGMAP);
   }
+  trigger_modechanged();
   AppendCharToRedobuff(K_INS);
   showmode();
   ui_cursor_shape();            // may show different cursor shape
