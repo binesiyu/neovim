@@ -8,8 +8,8 @@ local log = {}
 -- Log level dictionary with reverse lookup as well.
 --
 -- Can be used to lookup the number from the name or the name from the number.
--- Levels by name: 'trace', 'debug', 'info', 'warn', 'error'
--- Level numbers begin with 'trace' at 0
+-- Levels by name: "TRACE", "DEBUG", "INFO", "WARN", "ERROR"
+-- Level numbers begin with "TRACE" at 0
 log.levels = vim.deepcopy(vim.log.levels)
 
 -- Default log level is warn.
@@ -101,6 +101,7 @@ function log.set_level(level)
 end
 
 --- Gets the current log level.
+---@return string current log level
 function log.get_level()
   return current_log_level
 end

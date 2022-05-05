@@ -74,6 +74,7 @@ local function byte_to_utf(line, byte, offset_encoding)
   return utf_idx + 1
 end
 
+---@private
 local function compute_line_length(line, offset_encoding)
   local length
   local _
@@ -104,15 +105,16 @@ local function align_end_position(line, byte, offset_encoding)
     char = compute_line_length(line, offset_encoding) + 1
   else
     -- Modifying line, find the nearest utf codepoint
-    local offset = str_utf_end(line, byte)
+    local offset = str_utf_start(line, byte)
     -- If the byte does not fall on the start of the character, then
     -- align to the start of the next character.
-    if offset > 0 then
-      char = byte_to_utf(line, byte, offset_encoding) + 1
-      byte = byte + offset
-    else
+    if offset < 0 then
+      byte = byte + str_utf_end(line, byte) + 1
+    end
+    if byte <= #line then
       char = byte_to_utf(line, byte, offset_encoding)
-      byte = byte + offset
+    else
+      char = compute_line_length(line, offset_encoding) + 1
     end
     -- Extending line, find the nearest utf codepoint for the last valid character
   end
@@ -133,7 +135,7 @@ local function compute_start_range(prev_lines, curr_lines, firstline, lastline, 
   -- occur on a new line pointed to by lastline. This occurs during insertion of
   -- new lines(O), the new newline is inserted at the line indicated by
   -- new_lastline.
-  -- If firstline == new_lastline, the first change occured on a line that was deleted.
+  -- If firstline == new_lastline, the first change occurred on a line that was deleted.
   -- In this case, the first byte change is also at the first byte of firstline
   if firstline == new_lastline or firstline == lastline then
     return { line_idx = firstline, byte_idx = 1, char_idx = 1 }
@@ -166,7 +168,7 @@ local function compute_start_range(prev_lines, curr_lines, firstline, lastline, 
     char_idx = compute_line_length(prev_line, offset_encoding)  + 1
   else
     byte_idx = start_byte_idx + str_utf_start(prev_line, start_byte_idx)
-    char_idx = byte_to_utf(prev_line, start_byte_idx, offset_encoding)
+    char_idx = byte_to_utf(prev_line, byte_idx, offset_encoding)
   end
 
   -- Return the start difference (shared for new and prev lines)
@@ -187,7 +189,7 @@ end
 ---@param offset_encoding string
 ---@returns (int, int) end_line_idx and end_col_idx of range
 local function compute_end_range(prev_lines, curr_lines, start_range, firstline, lastline, new_lastline, offset_encoding)
-  -- If firstline == new_lastline, the first change occured on a line that was deleted.
+  -- If firstline == new_lastline, the first change occurred on a line that was deleted.
   -- In this case, the last_byte...
   if firstline == new_lastline then
       return { line_idx = (lastline - new_lastline + firstline), byte_idx = 1, char_idx = 1 }, { line_idx = firstline, byte_idx = 1, char_idx = 1 }

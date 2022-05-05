@@ -28,7 +28,7 @@ local function progress_handler(_, result, ctx, _)
   local client_name = client and client.name or string.format("id=%d", client_id)
   if not client then
     err_message("LSP[", client_name, "] client has shut down after sending the message")
-    return
+    return vim.NIL
   end
   local val = result.value    -- unspecified yet
   local token = result.token  -- string or number
@@ -70,6 +70,7 @@ M['window/workDoneProgress/create'] =  function(_, result, ctx)
   local client_name = client and client.name or string.format("id=%d", client_id)
   if not client then
     err_message("LSP[", client_name, "] client has shut down after sending the message")
+    return vim.NIL
   end
   client.messages.progress[token] = {}
   return vim.NIL
@@ -245,7 +246,7 @@ end
 ---@param config table Configuration table.
 ---     - border:     (default=nil)
 ---         - Add borders to the floating window
----         - See |vim.api.nvim_open_win()|
+---         - See |nvim_open_win()|
 function M.hover(_, result, ctx, config)
   config = config or {}
   config.focus_id = ctx.method
@@ -284,7 +285,7 @@ local function location_handler(_, result, ctx, _)
     util.jump_to_location(result[1])
 
     if #result > 1 then
-      util.set_qflist(util.locations_to_items(result))
+      vim.fn.setqflist({}, ' ', {title = 'LSP locations', items = util.locations_to_items(result)})
       api.nvim_command("copen")
     end
   else
@@ -378,7 +379,7 @@ local make_call_hierarchy_handler = function(direction)
         })
       end
     end
-    util.set_qflist(items)
+    vim.fn.setqflist({}, ' ', {title = 'LSP call hierarchy', items = items})
     api.nvim_command("copen")
   end
 end

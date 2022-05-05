@@ -28,6 +28,9 @@
 
 bool uses_custom_tabline;
 
+static const char *default_lang = "en_US";
+static const char *utf_8_lang_suffix = ".UTF-8";
+
 #pragma mark cond_var_t
 typedef struct {
   uv_mutex_t mutex;
@@ -55,6 +58,8 @@ static CFMessagePortRef remote_port;
 
 static uv_thread_t nvim_thread;
 
+static void set_lang_env_var();
+static char *cfstr2cstr_copy(CFStringRef cfstr);
 static const char *cfstr2cstr(CFStringRef cfstr, bool *free_bytes);
 
 static void start_nvim(void *_);
@@ -197,8 +202,32 @@ void send_msg_packing(NvimServerMsgId msgid, pack_block body) {
   msgpack_sbuffer_destroy(&sbuf);
 }
 
+static void set_lang_env_var() {
+  CFLocaleRef locale = CFLocaleCopyCurrent();
+  CFLocaleIdentifier locale_identifier = CFLocaleGetIdentifier(locale);
+
+  char *cstr_locale_identifier = cfstr2cstr_copy(locale_identifier);
+  if (cstr_locale_identifier == NULL) {
+    cstr_locale_identifier = malloc(strlen(default_lang) + 1);
+    strcpy(cstr_locale_identifier, default_lang);
+  }
+
+  char *lang = malloc(strlen(cstr_locale_identifier) + strlen(utf_8_lang_suffix) + 1);
+  sprintf(lang, "%s%s", cstr_locale_identifier, utf_8_lang_suffix);
+
+  setenv("LANG", lang, true);
+
+  free(lang);
+  free(cstr_locale_identifier);
+  CFRelease(locale);
+}
+
 static void start_nvim(void *arg __unused) {
   backspace = cstr_as_string("<BS>");
+
+  // Set $LANG to ${user lang}.UTF-8 such that the copied text to the system clipboard is not
+  // garbled.
+  set_lang_env_var();
 
   nvim_main(nvim_argc, nvim_argv);
 }
@@ -272,12 +301,7 @@ static void run_local_port(CFRunLoopRef run_loop) {
   CFRelease(run_loop_src);
 }
 
-static const char *cfstr2cstr(CFStringRef cfstr, bool *free_bytes) {
-  *free_bytes = false;
-
-  const char *cptr = CFStringGetCStringPtr(cfstr, kCFStringEncodingUTF8);
-  if (cptr != NULL) { return cptr; }
-
+static char *cfstr2cstr_copy(CFStringRef cfstr) {
   CFIndex out_len = 0;
   CFRange whole_range = CFRangeMake(0, CFStringGetLength(cfstr));
   CFIndex converted = CFStringGetBytes(
@@ -306,12 +330,24 @@ static const char *cfstr2cstr(CFStringRef cfstr, bool *free_bytes) {
   );
 
   if (converted == 0) {
-    free((void *) result);
+    free(result);
     return NULL;
   }
 
-  *free_bytes = true;
   result[out_len] = '\0';
+  return result;
+}
+
+static const char *cfstr2cstr(CFStringRef cfstr, bool *free_bytes) {
+  *free_bytes = false;
+
+  const char *cptr = CFStringGetCStringPtr(cfstr, kCFStringEncodingUTF8);
+  if (cptr != NULL) { return cptr; }
+
+  char *result = cfstr2cstr_copy(cfstr);
+  if (result == NULL) { return NULL; }
+
+  *free_bytes = true;
   return result;
 }
 
