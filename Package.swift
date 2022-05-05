@@ -30,7 +30,6 @@ let package = Package(
         .headerSearchPath("../../.deps/usr/include"),
         .headerSearchPath("../../build/config"),
         .headerSearchPath("../../build/src/nvim/auto/"),
-        .headerSearchPath("../../NvimServer/third-party/include"),
       ],
       linkerSettings: [
         .linkedFramework("CoreFoundation"),
@@ -49,7 +48,6 @@ let package = Package(
           ".deps/usr/lib/libvterm.a",
           ".deps/usr/lib/libluajit-5.1.a",
           ".deps/usr/lib/libtree-sitter.a",
-          "NvimServer/third-party/lib/libintl.a",
         ]),
       ]
     ),

@@ -1,6 +1,8 @@
 #!/bin/bash
 set -Eeuo pipefail
 
+readonly tag=${tag:?"eg nvimserver-0.6.1-1"}
+
 build_runtime() {
   local -r deployment_target=$1
   local -r nvim_install_path=$2
@@ -22,7 +24,6 @@ build_runtime() {
 
 download_and_build_universal_nvimserver() {
   local -r working_dir=$1
-  local tag; tag=$(cat "./NvimServer/Resources/nvimserver-for-download.txt"); readonly tag
 
   mkdir -p "${working_dir}"
   pushd "${working_dir}" >/dev/null

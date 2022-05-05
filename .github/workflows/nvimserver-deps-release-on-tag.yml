@@ -1,0 +1,35 @@
+name: "NvimServer deps release on tag"
+on:
+  push:
+    tags:
+      - 'nvimserver-deps-*'
+
+jobs:
+  Build-x86_64:
+    runs-on: macos-11
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Install brew packages
+        run: |
+          brew update >/dev/null
+          brew upgrade
+          brew install automake coreutils
+      - name: Build deps
+        run: |
+          ./NvimServer/bin/build_deps.sh
+      - name: Create release and upload artifact
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create -p ${{ github.ref_name }}
+          gh release upload ${{ github.ref_name }} NvimServer/third-party/gettext-x86_64.tar.bz2
+      - uses: actions/upload-artifact@v2
+        with:
+          name: gettext-x86_64
+          path: NvimServer/third-party/gettext-x86_64.tar.bz2
+          if-no-files-found: error
+          retention-days: 7
+

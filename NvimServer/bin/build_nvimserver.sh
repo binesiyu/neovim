@@ -2,7 +2,6 @@
 set -Eeuo pipefail
 
 declare -x target; target="$(uname -m)"; readonly target
-declare -r -x download_gettext=${download_gettext:?"true or falce"}
 declare -r -x clean=${clean:?"if true, will clean libnvim and nvimserver"}
 readonly build_libnvim=${build_libnvim:?"true or false"}
 readonly build_dir=${build_dir:-"./.build"}

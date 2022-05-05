@@ -153,19 +153,6 @@ function M.get_namespace(client_id)
   return _client_namespaces[client_id]
 end
 
---- Save diagnostics to the current buffer.
----
---- Handles saving diagnostics from multiple clients in the same buffer.
----@param diagnostics Diagnostic[]
----@param bufnr number
----@param client_id number
----@private
-function M.save(diagnostics, bufnr, client_id)
-  local namespace = M.get_namespace(client_id)
-  vim.diagnostic.set(namespace, bufnr, diagnostic_lsp_to_vim(diagnostics, bufnr, client_id))
-end
--- }}}
-
 --- |lsp-handler| for the method "textDocument/publishDiagnostics"
 ---
 --- See |vim.diagnostic.config()| for configuration options. Handler-specific
@@ -220,12 +207,9 @@ function M.on_publish_diagnostics(_, result, ctx, config)
   end
 
   vim.diagnostic.set(namespace, bufnr, diagnostic_lsp_to_vim(diagnostics, bufnr, client_id))
-
-  -- Keep old autocmd for back compat. This should eventually be removed.
-  vim.api.nvim_command("doautocmd <nomodeline> User LspDiagnosticsChanged")
 end
 
---- Clear diagnotics and diagnostic cache.
+--- Clear diagnostics and diagnostic cache.
 ---
 --- Diagnostic producers should prefer |vim.diagnostic.reset()|. However,
 --- this method signature is still used internally in some parts of the LSP
@@ -248,6 +232,23 @@ end
 
 -- Deprecated Functions {{{
 
+
+--- Save diagnostics to the current buffer.
+---
+---@deprecated Prefer |vim.diagnostic.set()|
+---
+--- Handles saving diagnostics from multiple clients in the same buffer.
+---@param diagnostics Diagnostic[]
+---@param bufnr number
+---@param client_id number
+---@private
+function M.save(diagnostics, bufnr, client_id)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.save is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
+  local namespace = M.get_namespace(client_id)
+  vim.diagnostic.set(namespace, bufnr, diagnostic_lsp_to_vim(diagnostics, bufnr, client_id))
+end
+-- }}}
+
 --- Get all diagnostics for clients
 ---
 ---@deprecated Prefer |vim.diagnostic.get()|
@@ -256,6 +257,7 @@ end
 ---                        If nil, diagnostics of all clients are included.
 ---@return table with diagnostics grouped by bufnr (bufnr: Diagnostic[])
 function M.get_all(client_id)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.get_all is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   local result = {}
   local namespace
   if client_id then
@@ -277,6 +279,7 @@ end
 ---                            Else, return just the diagnostics associated with the client_id.
 ---@param predicate function|nil Optional function for filtering diagnostics
 function M.get(bufnr, client_id, predicate)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.get is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   predicate = predicate or function() return true end
   if client_id == nil then
     local all_diagnostics = {}
@@ -338,6 +341,7 @@ end
 ---@param severity DiagnosticSeverity
 ---@param client_id number the client id
 function M.get_count(bufnr, severity, client_id)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.get_count is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   severity = severity_lsp_to_vim(severity)
   local opts = { severity = severity }
   if client_id ~= nil then
@@ -354,6 +358,7 @@ end
 ---@param opts table See |vim.lsp.diagnostic.goto_next()|
 ---@return table Previous diagnostic
 function M.get_prev(opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.get_prev is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   if opts then
     if opts.severity then
       opts.severity = severity_lsp_to_vim(opts.severity)
@@ -371,6 +376,7 @@ end
 ---@param opts table See |vim.lsp.diagnostic.goto_next()|
 ---@return table Previous diagnostic position
 function M.get_prev_pos(opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.get_prev_pos is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   if opts then
     if opts.severity then
       opts.severity = severity_lsp_to_vim(opts.severity)
@@ -387,6 +393,7 @@ end
 ---
 ---@param opts table See |vim.lsp.diagnostic.goto_next()|
 function M.goto_prev(opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.goto_prev is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   if opts then
     if opts.severity then
       opts.severity = severity_lsp_to_vim(opts.severity)
@@ -404,6 +411,7 @@ end
 ---@param opts table See |vim.lsp.diagnostic.goto_next()|
 ---@return table Next diagnostic
 function M.get_next(opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.get_next is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   if opts then
     if opts.severity then
       opts.severity = severity_lsp_to_vim(opts.severity)
@@ -421,6 +429,7 @@ end
 ---@param opts table See |vim.lsp.diagnostic.goto_next()|
 ---@return table Next diagnostic position
 function M.get_next_pos(opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.get_next_pos is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   if opts then
     if opts.severity then
       opts.severity = severity_lsp_to_vim(opts.severity)
@@ -434,25 +443,8 @@ end
 --- Move to the next diagnostic
 ---
 ---@deprecated Prefer |vim.diagnostic.goto_next()|
----
----@param opts table|nil Configuration table. Keys:
----         - {client_id}: (number)
----             - If nil, will consider all clients attached to buffer.
----         - {cursor_position}: (Position, default current position)
----             - See |nvim_win_get_cursor()|
----         - {wrap}: (boolean, default true)
----             - Whether to loop around file or not. Similar to 'wrapscan'
----         - {severity}: (DiagnosticSeverity)
----             - Exclusive severity to consider. Overrides {severity_limit}
----         - {severity_limit}: (DiagnosticSeverity)
----             - Limit severity of diagnostics found. E.g. "Warning" means { "Error", "Warning" } will be valid.
----         - {enable_popup}: (boolean, default true)
----             - Call |vim.lsp.diagnostic.show_line_diagnostics()| on jump
----         - {popup_opts}: (table)
----             - Table to pass as {opts} parameter to |vim.lsp.diagnostic.show_line_diagnostics()|
----         - {win_id}: (number, default 0)
----             - Window ID
 function M.goto_next(opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.goto_next is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   if opts then
     if opts.severity then
       opts.severity = severity_lsp_to_vim(opts.severity)
@@ -476,6 +468,7 @@ end
 ---             - severity_limit (DiagnosticSeverity):
 ---                 - Limit severity of diagnostics found. E.g. "Warning" means { "Error", "Warning" } will be valid.
 function M.set_signs(diagnostics, bufnr, client_id, _, opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.set_signs is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   local namespace = M.get_namespace(client_id)
   if opts and not opts.severity and opts.severity_limit then
     opts.severity = {min=severity_lsp_to_vim(opts.severity_limit)}
@@ -496,6 +489,7 @@ end
 ---             - severity_limit (DiagnosticSeverity):
 ---                 - Limit severity of diagnostics found. E.g. "Warning" means { "Error", "Warning" } will be valid.
 function M.set_underline(diagnostics, bufnr, client_id, _, opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.set_underline is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   local namespace = M.get_namespace(client_id)
   if opts and not opts.severity and opts.severity_limit then
     opts.severity = {min=severity_lsp_to_vim(opts.severity_limit)}
@@ -517,6 +511,7 @@ end
 ---             - severity_limit (DiagnosticSeverity):
 ---                 - Limit severity of diagnostics found. E.g. "Warning" means { "Error", "Warning" } will be valid.
 function M.set_virtual_text(diagnostics, bufnr, client_id, _, opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.set_virtual_text is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   local namespace = M.get_namespace(client_id)
   if opts and not opts.severity and opts.severity_limit then
     opts.severity = {min=severity_lsp_to_vim(opts.severity_limit)}
@@ -535,6 +530,7 @@ end
 ---@return an array of [text, hl_group] arrays. This can be passed directly to
 ---        the {virt_text} option of |nvim_buf_set_extmark()|.
 function M.get_virtual_text_chunks_for_line(bufnr, _, line_diags, opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.get_virtual_text_chunks_for_line is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   return vim.diagnostic._get_virt_text_chunks(diagnostic_lsp_to_vim(line_diags, bufnr), opts)
 end
 
@@ -552,6 +548,7 @@ end
 ---@param position table|nil The (0,0)-indexed position
 ---@return table {popup_bufnr, win_id}
 function M.show_position_diagnostics(opts, buf_nr, position)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.show_position_diagnostics is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   opts = opts or {}
   opts.scope = "cursor"
   opts.pos = position
@@ -565,7 +562,7 @@ end
 
 --- Open a floating window with the diagnostics from {line_nr}
 ---
----@deprecated Prefer |vim.diagnostic.show_line_diagnostics()|
+---@deprecated Prefer |vim.diagnostic.open_float()|
 ---
 ---@param opts table Configuration table
 ---     - all opts for |vim.lsp.diagnostic.get_line_diagnostics()| and
@@ -575,6 +572,7 @@ end
 ---@param client_id number|nil the client id
 ---@return table {popup_bufnr, win_id}
 function M.show_line_diagnostics(opts, buf_nr, line_nr, client_id)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.show_line_diagnostics is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   opts = opts or {}
   opts.scope = "line"
   opts.pos = line_nr
@@ -586,7 +584,7 @@ end
 
 --- Redraw diagnostics for the given buffer and client
 ---
----@deprecated Prefer |vim.diagnostic.redraw()|
+---@deprecated Prefer |vim.diagnostic.show()|
 ---
 --- This calls the "textDocument/publishDiagnostics" handler manually using
 --- the cached diagnostics already received from the server. This can be useful
@@ -598,6 +596,7 @@ end
 ---       client. The default is to redraw diagnostics for all attached
 ---       clients.
 function M.redraw(bufnr, client_id)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.redraw is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   bufnr = get_bufnr(bufnr)
   if not client_id then
     return vim.lsp.for_each_buffer_client(bufnr, function(client)
@@ -625,6 +624,7 @@ end
 ---         - {workspace}: (boolean, default true)
 ---             - Set the list with workspace diagnostics
 function M.set_qflist(opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.set_qflist is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   opts = opts or {}
   if opts.severity then
     opts.severity = severity_lsp_to_vim(opts.severity)
@@ -656,6 +656,7 @@ end
 ---         - {workspace}: (boolean, default false)
 ---             - Set the list with workspace diagnostics
 function M.set_loclist(opts)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.set_loclist is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   opts = opts or {}
   if opts.severity then
     opts.severity = severity_lsp_to_vim(opts.severity)
@@ -683,6 +684,7 @@ end
 -- send diagnostic information and the client will still process it. The
 -- diagnostics are simply not displayed to the user.
 function M.disable(bufnr, client_id)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.disable is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   if not client_id then
     return vim.lsp.for_each_buffer_client(bufnr, function(client)
       M.disable(bufnr, client.id)
@@ -703,6 +705,7 @@ end
 ---       client. The default is to enable diagnostics for all attached
 ---       clients.
 function M.enable(bufnr, client_id)
+  vim.api.nvim_echo({{'vim.lsp.diagnostic.enable is deprecated. See :h deprecated', 'WarningMsg'}}, true, {})
   if not client_id then
     return vim.lsp.for_each_buffer_client(bufnr, function(client)
       M.enable(bufnr, client.id)

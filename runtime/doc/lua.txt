@@ -362,8 +362,8 @@ cases there is the following agreement:
      converted to a dictionary `{'a': 42}`: non-string keys are ignored.
      Without `vim.type_idx` key tables with keys not fitting in 1., 2. or 3.
      are errors.
-   - `{[vim.type_idx]=vim.types.list}` is converted to an empty list. As well
-     as `{[vim.type_idx]=vim.types.list, [42]=1}`: integral keys that do not
+   - `{[vim.type_idx]=vim.types.array}` is converted to an empty list. As well
+     as `{[vim.type_idx]=vim.types.array, [42]=1}`: integral keys that do not
      form a 1-step sequence from 1 to N are ignored, as well as all
      non-integral keys.
 
@@ -759,9 +759,9 @@ vim.stricmp({a}, {b})                                   *vim.stricmp()*
         respectively.
 
 vim.str_utfindex({str}[, {index}])                      *vim.str_utfindex()*
-        Convert byte index to UTF-32 and UTF-16 indicies. If {index} is not
-        supplied, the length of the string is used. All indicies are zero-based.
-        Returns two values: the UTF-32 and UTF-16 indicies respectively.
+        Convert byte index to UTF-32 and UTF-16 indices. If {index} is not
+        supplied, the length of the string is used. All indices are zero-based.
+        Returns two values: the UTF-32 and UTF-16 indices respectively.
 
         Embedded NUL bytes are treated as terminating the string. Invalid
         UTF-8 bytes, and embedded surrogates are counted as one code
@@ -880,6 +880,15 @@ vim.types                                               *vim.types*
         values corresponding to `vim.types.float`, `vim.types.array` and
         `vim.types.dictionary` will not change or that `vim.types` table will
         only contain values for these three types.
+
+                                                   *log_levels* *vim.log.levels*
+Log levels are one of the values defined in `vim.log.levels`:
+
+        vim.log.levels.DEBUG
+        vim.log.levels.ERROR
+        vim.log.levels.INFO
+        vim.log.levels.TRACE
+        vim.log.levels.WARN
 
 ------------------------------------------------------------------------------
 LUA-VIMSCRIPT BRIDGE                                    *lua-vimscript*
@@ -1190,9 +1199,6 @@ defer_fn({fn}, {timeout})                                     *vim.defer_fn()*
                 Return: ~
                     timer luv timer object
 
-insert_keys({obj})                                         *vim.insert_keys()*
-                TODO: Documentation
-
 inspect({object}, {options})                                   *vim.inspect()*
                 Return a human-readable representation of the given object.
 
@@ -1200,20 +1206,16 @@ inspect({object}, {options})                                   *vim.inspect()*
                     https://github.com/kikito/inspect.lua
                     https://github.com/mpeterv/vinspect
 
-make_dict_accessor({scope}, {handle})               *vim.make_dict_accessor()*
-                TODO: Documentation
-
-notify({msg}, {log_level}, {_opts})                             *vim.notify()*
+notify({msg}, {log_level}, {opts})                              *vim.notify()*
                 Notification provider
 
                 Without a runtime, writes to :Messages
 
                 Parameters: ~
-                    {msg}        Content of the notification to show to the
-                                 user
-                    {log_level}  Optional log level
-                    {opts}       Dictionary with optional options (timeout,
-                                 etc)
+                    {msg}        string Content of the notification to show to
+                                 the user
+                    {log_level}  number|nil enum from vim.log.levels
+                    {opts}       table|nil additional options (timeout, etc)
 
                 See also: ~
                     :help nvim_notify
@@ -1239,7 +1241,7 @@ on_key({fn}, {ns_id})                                           *vim.on_key()*
                              it removes the callback for the associated
                              {ns_id}
                     {ns_id}  number? Namespace ID. If nil or 0, generates and
-                             returns a new |nvim_create_namesapce()| id.
+                             returns a new |nvim_create_namespace()| id.
 
                 Return: ~
                     number Namespace id associated with {fn}. Or count of all
@@ -1328,7 +1330,7 @@ deepcopy({orig})                                              *vim.deepcopy()*
                 and will throw an error.
 
                 Parameters: ~
-                    {orig}  Table to copy
+                    {orig}  table Table to copy
 
                 Return: ~
                     New table of copied keys and (nested) values.
@@ -1368,9 +1370,6 @@ is_callable({f})                                           *vim.is_callable()*
 
                 Return: ~
                     true if `f` is callable, else false
-
-is_valid({opt})                                               *vim.is_valid()*
-                TODO: Documentation
 
 list_extend({dst}, {src}, {start}, {finish})               *vim.list_extend()*
                 Extends a list-like table with the values of another list-like
