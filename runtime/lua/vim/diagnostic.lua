@@ -91,22 +91,23 @@ local function filter_by_severity(severity, diagnostics)
 end
 
 ---@private
-local function count_sources(bufnr)
-  local seen = {}
-  local count = 0
-  for _, namespace_diagnostics in pairs(diagnostic_cache[bufnr]) do
-    for _, diagnostic in ipairs(namespace_diagnostics) do
-      if diagnostic.source and not seen[diagnostic.source] then
-        seen[diagnostic.source] = true
-        count = count + 1
+local function prefix_source(source, diagnostics)
+  vim.validate { source = {source, function(v)
+    return v == "always" or v == "if_many"
+  end, "'always' or 'if_many'" } }
+
+  if source == "if_many" then
+    local sources = {}
+    for _, d in pairs(diagnostics) do
+      if d.source then
+        sources[d.source] = true
       end
     end
+    if #vim.tbl_keys(sources) <= 1 then
+      return diagnostics
+    end
   end
-  return count
-end
 
----@private
-local function prefix_source(diagnostics)
   return vim.tbl_map(function(d)
     if not d.source then
       return d
@@ -271,8 +272,6 @@ end
 ---@private
 local function set_diagnostic_cache(namespace, bufnr, diagnostics)
   for _, diagnostic in ipairs(diagnostics) do
-    assert(diagnostic.lnum, "Diagnostic line number is required")
-    assert(diagnostic.col, "Diagnostic column is required")
     diagnostic.severity = diagnostic.severity and to_severity(diagnostic.severity) or M.severity.ERROR
     diagnostic.end_lnum = diagnostic.end_lnum or diagnostic.lnum
     diagnostic.end_col = diagnostic.end_col or diagnostic.col
@@ -298,6 +297,11 @@ local function restore_extmarks(bufnr, last)
       if not found[extmark[1]] then
         local opts = extmark[4]
         opts.id = extmark[1]
+        -- HACK: end_row should be end_line
+        if opts.end_row then
+          opts.end_line = opts.end_row
+          opts.end_row = nil
+        end
         pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, extmark[2], extmark[3], opts)
       end
     end
@@ -504,20 +508,17 @@ local function diagnostic_move_pos(opts, pos)
     return
   end
 
-  vim.api.nvim_win_call(win_id, function()
-    -- Save position in the window's jumplist
-    vim.cmd("normal! m'")
-    vim.api.nvim_win_set_cursor(win_id, {pos[1] + 1, pos[2]})
-    -- Open folds under the cursor
-    vim.cmd("normal! zv")
-  end)
+  -- Save position in the window's jumplist
+  vim.api.nvim_win_call(win_id, function() vim.cmd("normal! m'") end)
+
+  vim.api.nvim_win_set_cursor(win_id, {pos[1] + 1, pos[2]})
 
   if float then
     local float_opts = type(float) == "table" and float or {}
     vim.schedule(function()
       M.open_float(
+        vim.api.nvim_win_get_buf(win_id),
         vim.tbl_extend("keep", float_opts, {
-          bufnr = vim.api.nvim_win_get_buf(win_id),
           scope = "cursor",
           focus = false,
         })
@@ -556,19 +557,11 @@ end
 ---       - underline: (default true) Use underline for diagnostics. Options:
 ---                    * severity: Only underline diagnostics matching the given severity
 ---                    |diagnostic-severity|
----       - virtual_text: (default true) Use virtual text for diagnostics. If multiple diagnostics
----                       are set for a namespace, one prefix per diagnostic + the last diagnostic
----                       message are shown.
----                       Options:
+---       - virtual_text: (default true) Use virtual text for diagnostics. Options:
 ---                       * severity: Only show virtual text for diagnostics matching the given
 ---                       severity |diagnostic-severity|
----                       * source: (boolean or string) Include the diagnostic source in virtual
----                                 text. Use "if_many" to only show sources if there is more than
----                                 one diagnostic source in the buffer. Otherwise, any truthy value
----                                 means to always show the diagnostic source.
----                       * spacing: (number) Amount of empty spaces inserted at the beginning
----                                  of the virtual text.
----                       * prefix: (string) Prepend diagnostic message with prefix.
+---                       * source: (string) Include the diagnostic source in virtual
+---                       text. One of "always" or "if_many".
 ---                       * format: (function) A function that takes a diagnostic as input and
 ---                                 returns a string. The return value is the text used to display
 ---                                 the diagnostic. Example:
@@ -662,10 +655,7 @@ function M.set(namespace, bufnr, diagnostics, opts)
 
   vim.api.nvim_buf_call(bufnr, function()
     vim.api.nvim_command(
-      string.format(
-        "doautocmd <nomodeline> DiagnosticChanged %s",
-        vim.fn.fnameescape(vim.api.nvim_buf_get_name(bufnr))
-      )
+      string.format("doautocmd <nomodeline> DiagnosticChanged %s", vim.api.nvim_buf_get_name(bufnr))
     )
   end)
 end
@@ -932,11 +922,8 @@ M.handlers.virtual_text = {
       if opts.virtual_text.format then
         diagnostics = reformat_diagnostics(opts.virtual_text.format, diagnostics)
       end
-      if
-        opts.virtual_text.source
-        and (opts.virtual_text.source ~= "if_many" or count_sources(bufnr) > 1)
-      then
-        diagnostics = prefix_source(diagnostics)
+      if opts.virtual_text.source then
+        diagnostics = prefix_source(opts.virtual_text.source, diagnostics)
       end
       if opts.virtual_text.severity then
         severity = opts.virtual_text.severity
@@ -1142,15 +1129,12 @@ end
 
 --- Show diagnostics in a floating window.
 ---
+---@param bufnr number|nil Buffer number. Defaults to the current buffer.
 ---@param opts table|nil Configuration table with the same keys as
 ---            |vim.lsp.util.open_floating_preview()| in addition to the following:
----            - bufnr: (number) Buffer number to show diagnostics from.
----                     Defaults to the current buffer.
 ---            - namespace: (number) Limit diagnostics to the given namespace
 ---            - scope: (string, default "line") Show diagnostics from the whole buffer ("buffer"),
 ---                     the current cursor line ("line"), or the current cursor position ("cursor").
----                     Shorthand versions are also accepted ("c" for "cursor", "l" for "line", "b"
----                     for "buffer").
 ---            - pos: (number or table) If {scope} is "line" or "cursor", use this position rather
 ---                   than the cursor position. If a number, interpreted as a line number;
 ---                   otherwise, a (row, col) tuple.
@@ -1161,11 +1145,8 @@ end
 ---            - header: (string or table) String to use as the header for the floating window. If a
 ---                      table, it is interpreted as a [text, hl_group] tuple. Overrides the setting
 ---                      from |vim.diagnostic.config()|.
----            - source: (boolean or string) Include the diagnostic source in the message.
----                      Use "if_many" to only show sources if there is more than one source of
----                      diagnostics in the buffer. Otherwise, any truthy value means to always show
----                      the diagnostic source. Overrides the setting from
----                      |vim.diagnostic.config()|.
+---            - source: (string) Include the diagnostic source in the message. One of "always" or
+---                      "if_many". Overrides the setting from |vim.diagnostic.config()|.
 ---            - format: (function) A function that takes a diagnostic as input and returns a
 ---                      string. The return value is the text used to display the diagnostic.
 ---                      Overrides the setting from |vim.diagnostic.config()|.
@@ -1182,21 +1163,15 @@ end
 ---                      highlight.
 ---                      Overrides the setting from |vim.diagnostic.config()|.
 ---@return tuple ({float_bufnr}, {win_id})
-function M.open_float(opts, ...)
-  -- Support old (bufnr, opts) signature
-  local bufnr
-  if opts == nil or type(opts) == "number" then
-    bufnr = opts
-    opts = ...
-  else
-    vim.validate {
-      opts = { opts, 't', true },
-    }
-  end
+function M.open_float(bufnr, opts)
+  vim.validate {
+    bufnr = { bufnr, 'n', true },
+    opts = { opts, 't', true },
+  }
 
   opts = opts or {}
-  bufnr = get_bufnr(bufnr or opts.bufnr)
-  local scope = ({l = "line", c = "cursor", b = "buffer"})[opts.scope] or opts.scope or "line"
+  bufnr = get_bufnr(bufnr)
+  local scope = opts.scope or "line"
   local lnum, col
   if scope == "line" or scope == "cursor" then
     if not opts.pos then
@@ -1277,8 +1252,8 @@ function M.open_float(opts, ...)
     diagnostics = reformat_diagnostics(opts.format, diagnostics)
   end
 
-  if opts.source and (opts.source ~= "if_many" or count_sources(bufnr) > 1) then
-    diagnostics = prefix_source(diagnostics)
+  if opts.source then
+    diagnostics = prefix_source(opts.source, diagnostics)
   end
 
   local prefix_opt = if_nil(opts.prefix, (scope == "cursor" and #diagnostics <= 1) and "" or function(_, i)
@@ -1354,14 +1329,9 @@ function M.reset(namespace, bufnr)
     end
   end
 
-  vim.api.nvim_buf_call(bufnr, function()
-    vim.api.nvim_command(
-      string.format(
-        "doautocmd <nomodeline> DiagnosticChanged %s",
-        vim.fn.fnameescape(vim.api.nvim_buf_get_name(bufnr))
-      )
-    )
-  end)
+  vim.api.nvim_command(
+      string.format("doautocmd <nomodeline> DiagnosticChanged %s", vim.api.nvim_buf_get_name(bufnr))
+  )
 end
 
 --- Add all diagnostics to the quickfix list.
